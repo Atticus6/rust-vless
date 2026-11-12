@@ -1,16 +1,15 @@
-//! JSON HTTP surface plus SPA hosting.
+//! JSON HTTP 接口与 SPA 托管。
 //!
-//! Every handler is a thin adapter: it extracts credentials from the
-//! `Authorization` header, delegates to [`crate::service`], and maps the
-//! result to JSON. The browser console itself uses the `WebAdmin` gRPC-Web
-//! service mounted on the same port, so both surfaces share one
-//! implementation.
+//! 每个处理器都是薄适配层：从 `Authorization` 头解析凭证，委托给
+//! [`crate::service`]，再把结果转成 JSON。浏览器控制台本身通过同端口的
+//! `WebAdmin` gRPC-Web 服务通信，因此两种传输共用同一套实现。
 
 use std::path::Path;
 use std::sync::Arc;
 
 use axum::extract::{Path as AxumPath, Query, State};
-use axum::http::{header::HeaderName, HeaderMap};
+use axum::http::{header, header::HeaderName, HeaderMap};
+use axum::response::IntoResponse;
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
@@ -28,6 +27,7 @@ use crate::db::{
 use crate::error::ApiError;
 use crate::service::{self, TopologyResponse};
 use crate::state::AppState;
+use crate::subscription::{self, SubscriptionUser};
 use crate::web_rpc::WebAdminService;
 
 #[derive(Debug, Deserialize)]
@@ -84,7 +84,7 @@ fn ok() -> Json<OkResponse> {
     Json(OkResponse { ok: true })
 }
 
-/// Resolve the caller from the `Authorization` header.
+/// 从 `Authorization` 头解析当前调用方。
 async fn session(
     state: &AppState,
     headers: &HeaderMap,
@@ -101,17 +101,15 @@ async fn admin_session(
     service::admin_for_token_strict(state, &token).await
 }
 
-/// Build the complete master HTTP router.
+/// 构建主节点完整的 HTTP 路由。
 ///
-/// The router serves three kinds of paths, in this order:
-/// 1. `/api/*` JSON endpoints (kept for scripts and backwards compatibility);
-/// 2. `/rustvless.rpc.v1.WebAdmin/*` gRPC-Web requests from the browser;
-/// 3. everything else from `web_dir`, falling back to `index.html` for client
-///    side routes.
+/// 按顺序处理三类路径：
+/// 1. `/api/*` JSON 接口（保留给脚本与向后兼容）；
+/// 2. 浏览器发往 `/rustvless.rpc.v1.WebAdmin/*` 的 gRPC-Web 请求；
+/// 3. 其余路径从 `web_dir` 提供静态文件，未命中时回退 `index.html` 以支持前端路由。
 ///
-/// gRPC-Web is decoded by [`GrpcWebLayer`] before reaching the tonic service.
-/// The layer is applied only to the gRPC routes, so JSON and static requests
-/// are untouched.
+/// gRPC-Web 在进入 tonic 服务前由 [`GrpcWebLayer`] 解码；该层只应用在
+/// gRPC 路由上，JSON 与静态请求不受影响。
 pub fn router(state: Arc<AppState>) -> Router {
     let web_dir = state.config.web_dir.clone();
     let index = Path::new(&web_dir).join("index.html");
@@ -141,12 +139,16 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/admins", get(list_admins).post(create_admin))
         .route("/api/admins/{id}", delete(delete_admin))
         .route("/api/traffic", get(traffic))
+        // 订阅入口信息（需要登录）；真正的订阅内容由 /sub/{token} 提供。
+        .route("/api/subscription", get(subscription_meta))
+        // 订阅接口用 token 鉴权，供 Clash / V2Ray 客户端直接拉取。
+        .route("/sub/{token}", get(subscription_v2ray))
+        .route("/sub/{token}/clash", get(subscription_clash))
         .route("/health", get(health))
         .with_state(state)
         .fallback_service(grpc)
         .layer(
-            // gRPC-Web clients read the status from response headers, so they
-            // must be explicitly exposed to cross-origin callers.
+            // gRPC-Web 客户端从响应头读取状态码，跨域调用时必须显式暴露。
             CorsLayer::new()
                 .allow_origin(Any)
                 .allow_methods(Any)
@@ -215,8 +217,7 @@ async fn create_node(
     Ok(Json(CreateNodeResponse { node, token }))
 }
 
-/// Partial node update: every field is optional and omitted fields keep their
-/// stored value, matching PATCH semantics.
+/// 局部更新节点：所有字段可选，未提供的字段保持原值，符合 PATCH 语义。
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateNodeRequest {
@@ -267,7 +268,7 @@ async fn create_user(
     headers: HeaderMap,
     Json(req): Json<CreateUserRequest>,
 ) -> Result<Json<ProxyUserView>, ApiError> {
-    // Admin-only owner override; regular users create users they own.
+    // 只有管理员可以代其他账号创建用户；普通用户创建的用户归自己。
     let admin = session(&state, &headers).await?;
     let owner_id = match req.owner_id.as_deref() {
         Some(raw) if admin.role == Role::Admin => Some(parse_uuid(raw)?),
@@ -355,8 +356,82 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "service": "rust-vless-master",
-        "version": env!("CARGO_PKG_VERSION"),
+        "version": rust_vless_common::version(),
     }))
+}
+
+/// 当前账号的订阅 token 与相对 URL；前端据此拼出可复制的完整地址。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscriptionResponse {
+    pub token: String,
+    pub v2ray_url: String,
+    pub clash_url: String,
+}
+
+async fn subscription_meta(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<SubscriptionResponse>, ApiError> {
+    let admin = session(&state, &headers).await?;
+    let (token, _) = service::subscription(&state, &admin).await?;
+    Ok(Json(SubscriptionResponse {
+        v2ray_url: format!("/sub/{token}"),
+        clash_url: format!("/sub/{token}/clash"),
+        token,
+    }))
+}
+
+/// 根据订阅 token 与请求头生成订阅内容；token 无效时返回 404。
+async fn subscription_body(
+    state: &AppState,
+    token: &str,
+    headers: &HeaderMap,
+    clash: bool,
+) -> Result<String, ApiError> {
+    let admin = state
+        .db
+        .admin_by_sub_token(token)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    let users: Vec<SubscriptionUser> = state
+        .db
+        .enabled_proxy_users_for_owner(admin.id)
+        .await?
+        .into_iter()
+        .map(|(id, name)| SubscriptionUser { id, name })
+        .collect();
+    let forwarded = headers
+        .get("x-forwarded-proto")
+        .and_then(|value| value.to_str().ok());
+    let host = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok());
+    let endpoint =
+        subscription::resolve_endpoint(&state.config.master_public_http_url, host, forwarded);
+    Ok(if clash {
+        subscription::clash_config(&endpoint, &users)
+    } else {
+        subscription::v2ray_subscription(&endpoint, &users)
+    })
+}
+
+async fn subscription_v2ray(
+    State(state): State<Arc<AppState>>,
+    AxumPath(token): AxumPath<String>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, ApiError> {
+    let body = subscription_body(&state, &token, &headers, false).await?;
+    Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body))
+}
+
+async fn subscription_clash(
+    State(state): State<Arc<AppState>>,
+    AxumPath(token): AxumPath<String>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, ApiError> {
+    let body = subscription_body(&state, &token, &headers, true).await?;
+    Ok(([(header::CONTENT_TYPE, "text/yaml; charset=utf-8")], body))
 }
 
 #[derive(Debug, Deserialize)]
@@ -467,46 +542,14 @@ async fn traffic_topology(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::MasterConfig;
+    use crate::test_support::{app_state, ADMIN_EMAIL, ADMIN_PASSWORD};
     use axum::body::{to_bytes, Body};
     use axum::http::{Method, Request, StatusCode};
-    use clap::Parser;
-    use rust_vless_common::UserRegistry;
-    use rust_vless_dataplane::{DataPlaneConfig, DataPlaneState};
     use tower::ServiceExt;
 
     async fn app() -> (Router, String) {
-        let db = crate::db::Db::open(":memory:").await.unwrap();
-        let hash = crate::auth::hash_password("password123").unwrap();
-        db.create_admin("admin@example.com", &hash, Role::Admin)
-            .await
-            .unwrap();
-        let config = MasterConfig::parse_from(["rust-vless-master"]);
-        let master_id = uuid::Uuid::new_v4();
-        db.ensure_master_node(
-            master_id,
-            "master",
-            "http://127.0.0.1:8080",
-            "http://127.0.0.1:50051",
-        )
-        .await
-        .unwrap();
-        let (tx, _rx) = tokio::sync::mpsc::channel(16);
-        let plane = DataPlaneState::new(
-            master_id,
-            "master".into(),
-            std::sync::Arc::new(UserRegistry::new()),
-            16,
-            tx,
-            DataPlaneConfig {
-                max_hops: 8,
-                allow_direct_fallback: true,
-            },
-        );
-        let state = AppState::new(db, config, master_id, plane);
-        state.refresh_dataplane().await.unwrap();
-        let app = router(state);
-        let token = login_token(&app, "admin@example.com", "password123").await;
+        let app = router(app_state().await);
+        let token = login_token(&app, ADMIN_EMAIL, ADMIN_PASSWORD).await;
         (app, token)
     }
 
@@ -699,9 +742,68 @@ mod tests {
         assert_eq!(page["offset"], 0);
     }
 
-    /// Sends a real gRPC-Web framed request through the axum router to prove
-    /// the layer, path mount, and trailing status headers are wired correctly.
-    /// A unit test on the service alone would not catch a broken transport.
+    #[tokio::test]
+    async fn subscription_endpoints_serve_links() {
+        use base64::Engine;
+
+        let (app, token) = app().await;
+        let (status, _) = call(
+            &app,
+            Method::POST,
+            "/api/users",
+            Some(&token),
+            Some(serde_json::json!({ "name": "phone" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+
+        let (status, meta) = call(&app, Method::GET, "/api/subscription", Some(&token), None).await;
+        assert_eq!(status, StatusCode::OK);
+        let v2ray_url = meta["v2rayUrl"].as_str().unwrap().to_string();
+        let clash_url = meta["clashUrl"].as_str().unwrap().to_string();
+        assert!(!meta["token"].as_str().unwrap().is_empty());
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(&v2ray_url)
+                    .header("host", "master.example.com:8080")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(body)
+            .unwrap();
+        let text = String::from_utf8(decoded).unwrap();
+        assert!(text.starts_with("vless://"));
+        assert!(text.contains("master.example.com:8080"));
+        assert!(text.contains("#phone"));
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(&clash_url)
+                    .header("host", "master.example.com:8080")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let text = String::from_utf8(body.to_vec()).unwrap();
+        assert!(text.contains("type: vless"));
+        assert!(text.contains("phone"));
+    }
+
+    /// 通过 axum 路由发送一个真实 gRPC-Web 帧请求，验证解码层、路径挂载与
+    /// trailer 状态头都已接通；只测服务层无法发现传输层接线错误。
     #[tokio::test]
     async fn grpc_web_login_is_served_on_http_port() {
         use prost::Message;
@@ -719,17 +821,16 @@ mod tests {
         assert!(!login.token.is_empty());
         assert_eq!(login.admin.unwrap().email, "admin@example.com");
 
-        // A call without metadata must fail with UNAUTHENTICATED (16) instead
-        // of reaching the handler.
+        // 没有 metadata 的调用必须以 UNAUTHENTICATED (16) 失败，
+        // 而不是进入业务处理器。
         let nodes: rust_vless_proto::Empty = Default::default();
         let response = grpc_web_call(&app, "ListNodes", &nodes).await;
         let (status, _) = read_grpc_web(response).await;
         assert_eq!(status.as_deref(), Some("16"));
     }
 
-    /// Parse a gRPC-Web response: message frames are flag 0x00, the trailer
-    /// frame is flag 0x80 and carries `grpc-status`. Trailers-only responses
-    /// may carry the status in the HTTP headers instead.
+    /// 解析 gRPC-Web 响应：消息帧标志为 0x00，trailer 帧标志为 0x80 并携带
+    /// `grpc-status`；trailers-only 响应也可能把状态放在 HTTP 头里。
     async fn read_grpc_web(response: axum::response::Response) -> (Option<String>, Vec<u8>) {
         let header_status = response
             .headers()
@@ -761,8 +862,7 @@ mod tests {
         (status, message)
     }
 
-    /// Encode one unary message as a gRPC-Web request and send it through the
-    /// router without a listening socket.
+    /// 把一条 unary 消息编码成 gRPC-Web 请求，并通过路由发送（不监听端口）。
     async fn grpc_web_call<M: prost::Message>(
         app: &Router,
         method: &str,

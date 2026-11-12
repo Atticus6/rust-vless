@@ -1,0 +1,8 @@
+# 构建产物与本地数据不进入镜像上下文。
+target/
+web/node_modules/
+web/dist/
+.git/
+*.db
+*.jsonl
+.env

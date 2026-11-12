@@ -3,8 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
-/// Per-user traffic counters. Counters are in-memory and reset when the node
-/// reports a batch to the master.
+/// 单个用户的流量计数器。计数保存在内存中，节点向主节点上报一批后清零。
 #[derive(Debug, Default)]
 pub struct UserStats {
     up: AtomicU64,
@@ -31,7 +30,7 @@ impl UserStats {
         )
     }
 
-    /// Atomically take and reset the counters.
+    /// 原子地取出并清零计数器。
     pub fn take(&self) -> (u64, u64) {
         (
             self.up.swap(0, Ordering::Relaxed),
@@ -40,7 +39,7 @@ impl UserStats {
     }
 }
 
-/// Thread-safe UUID registry shared by the VLESS handler and RPC config sync.
+/// VLESS 处理与 RPC 配置同步共享的线程安全 UUID 注册表。
 #[derive(Debug, Default)]
 pub struct UserRegistry {
     users: RwLock<HashMap<Uuid, Arc<UserStats>>>,
@@ -83,8 +82,8 @@ impl UserRegistry {
         self.len() == 0
     }
 
-    /// Replace the registry with `ids`, preserving counters for users that
-    /// remain enabled. Returns (added, removed, total).
+    /// 用 `ids` 替换注册表，保留仍启用的用户的计数器。
+    /// 返回（新增数，移除数，总数）。
     pub fn replace_all(&self, ids: impl IntoIterator<Item = Uuid>) -> (usize, usize, usize) {
         let mut next: HashMap<Uuid, Arc<UserStats>> = HashMap::new();
         let mut added = 0usize;
@@ -115,7 +114,7 @@ impl UserRegistry {
         (added, removed, total)
     }
 
-    /// Snapshot all counters without resetting them.
+    /// 读取全部计数器快照，不清零。
     pub fn snapshot_all(&self) -> Vec<(Uuid, u64, u64)> {
         let guard = self.users.read().expect("registry lock poisoned");
         guard
@@ -127,7 +126,7 @@ impl UserRegistry {
             .collect()
     }
 
-    /// Take all counters, resetting every user to zero.
+    /// 取出全部计数器并把每个用户清零。
     pub fn take_all(&self) -> Vec<(Uuid, u64, u64)> {
         let guard = self.users.read().expect("registry lock poisoned");
         guard

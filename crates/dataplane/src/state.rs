@@ -115,16 +115,16 @@ impl DataPlaneState {
         }
     }
 
-    /// Non-blocking event emission. A slow or disconnected master must never
-    /// block a proxy session or exhaust connection permits.
+    /// 非阻塞地发送数据事件。主节点变慢或断线时不能阻塞代理会话，
+    /// 也不能耗尽连接许可。
     pub fn emit(&self, event: DataEvent) {
         if let Err(err) = self.events.try_send(event) {
             match err {
                 tokio::sync::mpsc::error::TrySendError::Full(_) => {
-                    tracing::warn!("data event channel full; dropping event")
+                    tracing::warn!("数据事件通道已满，丢弃事件")
                 }
                 tokio::sync::mpsc::error::TrySendError::Closed(_) => {
-                    tracing::debug!("data event channel closed")
+                    tracing::debug!("数据事件通道已关闭")
                 }
             }
         }

@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use rust_vless_dataplane::DataPlaneState;
 
+use crate::access_store::AccessStore;
 use crate::config::MasterConfig;
 use crate::db::{Db, DbError, LinkRecord};
 
@@ -32,6 +33,12 @@ pub struct AppState {
     pub master_node_id: Uuid,
     pub dataplane: Arc<DataPlaneState>,
     pub login_sem: Arc<tokio::sync::Semaphore>,
+    /// 独立的访问日志文件，查询走 DuckDB。
+    pub access: AccessStore,
+    /// 未安装时的一次性安装码；安装完成后为 `None`。
+    pub setup_token: Option<String>,
+    /// 安装码连续校验失败次数；达到上限后拒绝继续尝试。
+    pub setup_failures: Mutex<u32>,
     publish_lock: Mutex<()>,
     revision: AtomicI64,
 }
@@ -42,6 +49,8 @@ impl AppState {
         config: MasterConfig,
         master_node_id: Uuid,
         dataplane: Arc<DataPlaneState>,
+        access: AccessStore,
+        setup_token: Option<String>,
     ) -> Arc<Self> {
         Arc::new(Self {
             db,
@@ -50,6 +59,9 @@ impl AppState {
             master_node_id,
             dataplane,
             login_sem: Arc::new(tokio::sync::Semaphore::new(4)),
+            access,
+            setup_token,
+            setup_failures: Mutex::new(0),
             publish_lock: Mutex::new(()),
             revision: AtomicI64::new(0),
         })
@@ -71,7 +83,7 @@ impl AppState {
         })
     }
 
-    /// Send the current full user snapshot to every connected node.
+    /// 向所有在线节点发送当前完整用户快照。
     pub async fn publish_config(&self) {
         let _guard = self.publish_lock.lock().await;
         let config = match self.build_config().await {
@@ -109,7 +121,7 @@ impl AppState {
         }
     }
 
-    /// Recompute each node's outbound/inbound links and push it.
+    /// 重新计算每个节点的出边/入边并下发。
     pub async fn publish_topology(&self) {
         let _guard = self.publish_lock.lock().await;
         let links = match self.db.list_links().await {
@@ -145,8 +157,8 @@ impl AppState {
         }
     }
 
-    /// A node that cannot accept a snapshot within the timeout is disconnected
-    /// so it reconnects and resynchronizes instead of serving stale auth data.
+    /// 超时内无法接收快照的节点会被断开，使其重连并重新同步，
+    /// 而不是继续使用过期的鉴权数据。
     async fn drop_stalled_node(&self, id: Uuid, conn_id: Uuid, kind: &str) {
         if self.set_offline_if(id, conn_id).await {
             tracing::warn!(%id, kind, "node stalled; disconnecting for resync");
@@ -197,7 +209,7 @@ impl AppState {
         Ok(self.topology_for(node_id, &links))
     }
 
-    /// Populate the master's own data plane after startup.
+    /// 启动后填充主节点自身的数据面。
     pub async fn refresh_dataplane(&self) -> Result<(), DbError> {
         let config = self.build_config().await?;
         let ids = config
@@ -212,9 +224,8 @@ impl AppState {
         Ok(())
     }
 
-    /// Register a node while holding the publish lock, so a concurrent
-    /// user/link change cannot slip between the initial snapshot and the
-    /// node becoming visible to future publishes.
+    /// 在持有发布锁的情况下注册节点，避免并发的用户/连线变更插入到
+    /// 「初始快照」与「节点对后续发布可见」之间。
     pub async fn register_node(&self, id: Uuid, node: LiveNode) -> Result<(), DbError> {
         let _guard = self.publish_lock.lock().await;
         let config = self.build_config().await?;
@@ -240,8 +251,7 @@ impl AppState {
         self.live.write().await.remove(&id);
     }
 
-    /// Remove a node only if the live entry still belongs to this connection.
-    /// A stale stream must not evict a newer reconnection.
+    /// 仅当实时条目仍属于该连接时才移除节点；过期连接不能驱逐更新的重连。
     pub async fn set_offline_if(&self, id: Uuid, conn_id: Uuid) -> bool {
         let mut live = self.live.write().await;
         if live.get(&id).map(|node| node.conn_id) == Some(conn_id) {

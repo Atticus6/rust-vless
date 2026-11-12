@@ -10,7 +10,7 @@ use rust_vless_proto::node_control_client::NodeControlClient;
 use rust_vless_proto::node_message::Payload as NodePayload;
 use rust_vless_proto::{
     AccessLog, AccessLogBatch, Heartbeat, Hello, LinkTraffic, LinkTrafficReport, MasterMessage,
-    NodeMessage, TrafficReport, UserTraffic,
+    NodeMessage, TrafficReport, UpgradeResult, UserTraffic,
 };
 use tokio::sync::mpsc;
 use tokio::time::{interval, MissedTickBehavior};
@@ -72,7 +72,7 @@ async fn connect_once(
         payload: Some(NodePayload::Hello(Hello {
             node_id: node_id.to_string(),
             token: config.node_token.clone(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
+            version: rust_vless_common::version().to_string(),
             http_url: config.public_http_url.clone(),
             rpc_url: config.public_rpc_url.clone(),
         })),
@@ -193,6 +193,30 @@ async fn connect_once(
                             "master accepted node"
                         );
                     }
+                    Ok(Some(MasterMessage { payload: Some(MasterPayload::Upgrade(upgrade)) })) => {
+                        let version = upgrade.version.clone();
+                        let result = spawn_upgrade(config.upgrade_command.as_deref(), &version);
+                        let (ok, error) = match &result {
+                            Ok(()) => {
+                                tracing::info!(%version, "已启动节点升级命令");
+                                (true, String::new())
+                            }
+                            Err(err) => {
+                                tracing::warn!(%version, error = %err, "节点升级命令启动失败");
+                                (false, err.clone())
+                            }
+                        };
+                        let message = NodeMessage {
+                            payload: Some(NodePayload::UpgradeResult(UpgradeResult {
+                                version,
+                                ok,
+                                error,
+                            })),
+                        };
+                        if tx.send(message).await.is_err() {
+                            break;
+                        }
+                    }
                     Ok(Some(_)) => {}
                     Ok(None) => break,
                     Err(err) => {
@@ -204,9 +228,8 @@ async fn connect_once(
         }
     }
 
-    // Keep buffers in `run` so the next successful connection flushes them.
-    // Sending into a stream that just ended could otherwise clear them
-    // without the master ever receiving the data.
+    // 缓冲区保留在 `run` 中，等下一次连接成功后重发；
+    // 直接写入刚结束的流会在主节点收到数据前清空缓冲区。
     Ok(())
 }
 
@@ -270,6 +293,48 @@ fn normalize_endpoint(raw: &str) -> String {
     }
 }
 
+/// 启动运维配置的升级命令（分离进程）。
+///
+/// 命令通过 shell 执行，环境变量提供：
+/// - `RUST_VLESS_TARGET_VERSION`：目标版本；
+/// - `RUST_VLESS_NODE_PID`：当前节点进程 PID，脚本替换二进制后据此结束旧进程，
+///   由 systemd / Docker 以新版本重启。
+///
+/// 之所以显式传 PID：命令是经 `sh -c` 启动的，脚本里的 `$PPID` 是 shell 而不是
+/// 节点。`ok=true` 只表示命令已成功启动，最终版本以节点重连后上报为准。
+fn spawn_upgrade(command: Option<&str>, version: &str) -> Result<(), String> {
+    let command = command
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "未配置 RUST_VLESS_UPGRADE_COMMAND".to_string())?;
+
+    let mut cmd = if cfg!(windows) {
+        let mut cmd = std::process::Command::new("cmd");
+        cmd.args(["/C", command]);
+        cmd
+    } else {
+        let mut cmd = std::process::Command::new("sh");
+        cmd.args(["-c", command]);
+        cmd
+    };
+    cmd.env("RUST_VLESS_TARGET_VERSION", version)
+        .env("RUST_VLESS_NODE_PID", std::process::id().to_string())
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    let mut child = cmd.spawn().map_err(|err| err.to_string())?;
+    // 后台回收子进程，避免僵尸进程；不阻塞控制流，也不主动退出节点
+    // （脚本会按 RUST_VLESS_NODE_PID 结束旧进程）。
+    tokio::task::spawn_blocking(move || {
+        if let Ok(status) = child.wait() {
+            if !status.success() {
+                tracing::warn!(%status, "升级脚本退出码非零");
+            }
+        }
+    });
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,5 +349,17 @@ mod tests {
             normalize_endpoint("http://master:50051"),
             "http://master:50051"
         );
+    }
+
+    #[test]
+    fn upgrade_requires_configured_command() {
+        assert!(spawn_upgrade(None, "0.1.0").is_err());
+        assert!(spawn_upgrade(Some("   "), "0.1.0").is_err());
+    }
+
+    #[tokio::test]
+    async fn upgrade_spawns_configured_command() {
+        let command = if cfg!(windows) { "exit 0" } else { "true" };
+        assert!(spawn_upgrade(Some(command), "0.1.0").is_ok());
     }
 }

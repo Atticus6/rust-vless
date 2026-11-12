@@ -1,7 +1,11 @@
 /target/
 /master.db
 *.db
+# 访问日志与 DuckDB 文件属于运行时数据
+*.jsonl
+*.duckdb
 web/node_modules/
 web/dist/
+web/.vite/
 *.tsbuildinfo
 .agents/

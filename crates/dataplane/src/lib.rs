@@ -1,4 +1,4 @@
-//! Shared VLESS data plane used by both the master and child nodes.
+//! 主节点与子节点共享的 VLESS 数据面。
 
 pub mod event;
 pub mod frame;

@@ -1,37 +1,49 @@
-import { Button, cn } from '@heroui/react'
+import { Button, Label, ListBox, Select, cn } from '@heroui/react'
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import {
   Activity,
   LayoutDashboard,
   LogOut,
   Network,
+  PackageCheck,
   Server,
+  UserRound,
   Users,
   UsersRound,
 } from 'lucide-react'
 import { Toaster } from 'sonner'
 import { clearAuth, getAdmin } from '@/lib/auth'
-import { logout } from '@/lib/rpc'
+import { client } from '@/lib/trpc'
+import { useI18n, type Lang, type MessageKey } from '@/i18n'
 
 const nav = [
-  { to: '/', label: '总览', icon: LayoutDashboard, exact: true, adminOnly: false },
-  { to: '/nodes', label: '节点', icon: Server, exact: false, adminOnly: true },
-  { to: '/connections', label: '连接', icon: Network, exact: false, adminOnly: true },
-  { to: '/users', label: '代理用户', icon: Users, exact: false, adminOnly: false },
-  { to: '/team', label: '团队', icon: UsersRound, exact: false, adminOnly: true },
-  { to: '/traffic', label: '流量', icon: Activity, exact: false, adminOnly: false },
-]
+  { to: '/', label: 'nav.overview', icon: LayoutDashboard, exact: true, adminOnly: false },
+  { to: '/me', label: 'nav.me', icon: UserRound, exact: false, adminOnly: false },
+  { to: '/nodes', label: 'nav.nodes', icon: Server, exact: false, adminOnly: true },
+  { to: '/connections', label: 'nav.connections', icon: Network, exact: false, adminOnly: true },
+  { to: '/users', label: 'nav.users', icon: Users, exact: false, adminOnly: false },
+  { to: '/team', label: 'nav.team', icon: UsersRound, exact: false, adminOnly: true },
+  { to: '/versions', label: 'nav.versions', icon: PackageCheck, exact: false, adminOnly: true },
+  { to: '/traffic', label: 'nav.traffic', icon: Activity, exact: false, adminOnly: false },
+] satisfies Array<{
+  to: string
+  label: MessageKey
+  icon: typeof LayoutDashboard
+  exact: boolean
+  adminOnly: boolean
+}>
 
 export function AppLayout() {
   const admin = getAdmin()
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const { t, lang, setLang } = useI18n()
 
   async function signOut() {
     try {
-      await logout()
+      await client.logout({})
     } catch {
-      // The local session is cleared even if the server is unreachable.
+      // 服务端不可达时仍然清空本地会话。
     }
     clearAuth()
     void navigate({ to: '/login' })
@@ -63,7 +75,7 @@ export function AppLayout() {
                 )}
               >
                 <item.icon className="h-4 w-4" />
-                {item.label}
+                {t(item.label)}
               </Link>
             )
           })}
@@ -71,16 +83,39 @@ export function AppLayout() {
 
         <div className="mt-auto space-y-3 border-t border-border pt-4">
           <div className="px-2 text-xs text-muted">
-            <div className="truncate">{admin?.email ?? '未登录'}</div>
+            <div className="truncate">{admin?.email ?? t('nav.notSignedIn')}</div>
             <div className="mt-0.5 uppercase tracking-wide">{admin?.role ?? ''}</div>
           </div>
+          <Select
+            aria-label={t('common.language')}
+            selectedKey={lang}
+            onSelectionChange={(key) => setLang(key as Lang)}
+          >
+            <Label className="text-xs">{t('common.language')}</Label>
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                <ListBox.Item id="zh" textValue={t('common.chinese')}>
+                  {t('common.chinese')}
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+                <ListBox.Item id="en" textValue="English">
+                  English
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              </ListBox>
+            </Select.Popover>
+          </Select>
           <Button
             variant="ghost"
             className="w-full justify-start gap-2"
             onPress={() => void signOut()}
           >
             <LogOut className="h-4 w-4" />
-            退出登录
+            {t('nav.signOut')}
           </Button>
         </div>
       </aside>

@@ -11,68 +11,60 @@ import {
   TextField,
 } from '@heroui/react'
 import { Plus, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
+import { WebRole } from '@/gen/rpc_pb'
+import { useI18n } from '@/i18n'
 import { getAdmin } from '@/lib/auth'
 import { formatTime } from '@/lib/format'
-import { createAdmin, deleteAdmin, listAdmins } from '@/lib/rpc'
+import { client } from '@/lib/trpc'
 import type { AdminView, Role } from '@/lib/types'
 
 export function TeamPage() {
+  const { t, locale } = useI18n()
   const admin = getAdmin()
-  const [admins, setAdmins] = useState<AdminView[]>([])
+  const isAdmin = admin?.role === 'admin'
+  const admins = client.listAdmins.useQuery(undefined, { enabled: isAdmin })
+  const createAdmin = client.createAdmin.useMutation()
+  const deleteAdmin = client.deleteAdmin.useMutation()
+
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<Role>('user')
-  const [busy, setBusy] = useState(false)
 
-  const load = useCallback(async () => {
-    if (admin?.role !== 'admin') return
-    try {
-      setAdmins(await listAdmins())
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '加载账号失败')
-    }
-  }, [admin?.role])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  if (admin?.role !== 'admin') {
+  if (!isAdmin) {
     return (
       <div className="rounded-lg border border-border bg-surface p-8 text-center text-sm text-muted">
-        只有 admin 账号可以管理团队。
+        {t('team.adminOnly')}
       </div>
     )
   }
 
   async function create() {
-    setBusy(true)
     try {
-      await createAdmin({ email, password, role })
+      await createAdmin.mutateAsync({
+        email,
+        password,
+        role: role === 'admin' ? WebRole.ADMIN : WebRole.USER,
+      })
       setEmail('')
       setPassword('')
       setRole('user')
       setOpen(false)
-      await load()
-      toast.success('账号已创建')
+      toast.success(t('team.created'))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '创建失败')
-    } finally {
-      setBusy(false)
+      toast.error(error instanceof Error ? error.message : t('common.createFailed'))
     }
   }
 
   async function remove(item: AdminView) {
-    if (!window.confirm(`删除账号 ${item.email}？其名下代理用户也会被删除。`)) return
+    if (!window.confirm(t('team.deleteConfirm', { email: item.email }))) return
     try {
-      await deleteAdmin(item.id)
-      await load()
-      toast.success('账号已删除')
+      await deleteAdmin.mutateAsync({ id: item.id })
+      toast.success(t('team.deleted'))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '删除失败')
+      toast.error(error instanceof Error ? error.message : t('common.deleteFailed'))
     }
   }
 
@@ -80,48 +72,62 @@ export function TeamPage() {
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">团队</h1>
-          <p className="text-sm text-muted">admin 管理全部资源；user 只能管理自己名下的代理用户</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t('team.title')}</h1>
+          <p className="text-sm text-muted">{t('team.subtitle')}</p>
         </div>
         <Button className="gap-2" onPress={() => setOpen(true)}>
-          <Plus className="h-4 w-4" /> 添加账号
+          <Plus className="h-4 w-4" /> {t('team.add')}
         </Button>
       </div>
 
+      {admins.error && (
+        <div className="rounded-md border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+          {admins.error.message}
+        </div>
+      )}
+
       <Card>
         <Card.Header>
-          <Card.Title className="text-base">管理账号</Card.Title>
+          <Card.Title className="text-base">{t('team.list')}</Card.Title>
         </Card.Header>
         <Card.Content>
           <Table>
-            <Table.Content aria-label="管理账号列表">
+            <Table.Content aria-label={t('team.list')}>
               <Table.Header>
-                <Table.Column isRowHeader>邮箱</Table.Column>
-                <Table.Column>角色</Table.Column>
-                <Table.Column>创建时间</Table.Column>
-                <Table.Column className="text-right">操作</Table.Column>
+                <Table.Column isRowHeader>{t('login.email')}</Table.Column>
+                <Table.Column>{t('team.role')}</Table.Column>
+                <Table.Column>{t('team.createdAt')}</Table.Column>
+                <Table.Column className="text-right">{t('common.actions')}</Table.Column>
               </Table.Header>
               <Table.Body
                 renderEmptyState={() => (
-                  <div className="py-8 text-center text-sm text-muted">还没有管理账号</div>
+                  <div className="py-8 text-center text-sm text-muted">
+                    {admins.isLoading ? t('common.loading') : t('team.empty')}
+                  </div>
                 )}
               >
-                {admins.map((item) => (
+                {(admins.data ?? []).map((item) => (
                   <Table.Row key={item.id} id={item.id}>
                     <Table.Cell className="font-medium">{item.email}</Table.Cell>
                     <Table.Cell>
-                      <Chip size="sm" variant="soft" color={item.role === 'admin' ? 'accent' : 'default'}>
+                      <Chip
+                        size="sm"
+                        variant="soft"
+                        color={item.role === 'admin' ? 'accent' : 'default'}
+                      >
                         {item.role}
                       </Chip>
                     </Table.Cell>
-                    <Table.Cell className="text-xs text-muted">{formatTime(item.createdAt)}</Table.Cell>
+                    <Table.Cell className="text-xs text-muted">
+                      {formatTime(item.createdAt, locale)}
+                    </Table.Cell>
                     <Table.Cell className="text-right">
                       {item.id !== admin?.id && (
                         <Button
                           variant="ghost"
                           size="sm"
                           isIconOnly
-                          aria-label={`删除 ${item.email}`}
+                          aria-label={t('team.deleteAria', { name: item.email })}
                           onPress={() => void remove(item)}
                         >
                           <Trash2 className="h-4 w-4 text-danger" />
@@ -141,26 +147,32 @@ export function TeamPage() {
           <Modal.Dialog>
             <Modal.CloseTrigger />
             <Modal.Header>
-              <Modal.Heading>添加管理账号</Modal.Heading>
-              <p className="text-sm text-muted">密码至少 8 位。</p>
+              <Modal.Heading>{t('team.addTitle')}</Modal.Heading>
+              <p className="text-sm text-muted">{t('team.addHint')}</p>
             </Modal.Header>
             <Modal.Body>
               <div className="space-y-3">
                 <TextField variant="secondary" isRequired fullWidth value={email} onChange={setEmail}>
-                  <Label>邮箱</Label>
+                  <Label>{t('login.email')}</Label>
                   <Input type="email" />
                 </TextField>
-                <TextField variant="secondary" isRequired fullWidth value={password} onChange={setPassword}>
-                  <Label>密码</Label>
+                <TextField
+                  variant="secondary"
+                  isRequired
+                  fullWidth
+                  value={password}
+                  onChange={setPassword}
+                >
+                  <Label>{t('login.password')}</Label>
                   <Input type="password" />
                 </TextField>
                 {/* React Aria Select 使用 selectedKey/onSelectionChange 作为受控 API。 */}
                 <Select
-                  aria-label="角色"
+                  aria-label={t('team.role')}
                   selectedKey={role}
                   onSelectionChange={(key) => setRole(key as Role)}
                 >
-                  <Label>角色</Label>
+                  <Label>{t('team.role')}</Label>
                   <Select.Trigger>
                     <Select.Value />
                     <Select.Indicator />
@@ -182,13 +194,13 @@ export function TeamPage() {
             </Modal.Body>
             <Modal.Footer>
               <Button slot="close" variant="secondary">
-                取消
+                {t('common.cancel')}
               </Button>
               <Button
                 onPress={() => void create()}
-                isDisabled={busy || !email || password.length < 8}
+                isDisabled={createAdmin.isPending || !email || password.length < 8}
               >
-                创建
+                {t('common.create')}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

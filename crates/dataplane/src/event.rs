@@ -1,4 +1,4 @@
-/// Emitted when an entry session ends. Only the entry node records these.
+/// 入口会话结束时产生的事件；只有入口节点会记录。
 #[derive(Debug, Clone)]
 pub struct AccessRecord {
     pub session_id: String,
@@ -16,7 +16,7 @@ pub struct AccessRecord {
     pub client_addr: String,
 }
 
-/// Emitted by every node that forwards a session over an outbound link.
+/// 通过出边转发会话的每个节点都会产生该事件。
 #[derive(Debug, Clone)]
 pub struct LinkTrafficRecord {
     pub link_id: String,

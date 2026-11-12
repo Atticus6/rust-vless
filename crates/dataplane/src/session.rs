@@ -119,7 +119,7 @@ pub async fn run_session(
                 tracing::debug!(link = %link.link_id, error = %err.message, "relay hop failed");
                 last_error = err.message;
                 if err.header_sent {
-                    // The downstream may already be executing this request.
+                    // 下游可能已经开始执行该请求，不能再重试或直连。
                     break;
                 }
             }
@@ -486,7 +486,7 @@ async fn forward_udp_payload(udp: &UdpSocket, data: &[u8], stats: Option<&Sessio
             continue;
         }
         if offset + len > data.len() {
-            tracing::debug!(len, remaining = data.len() - offset, "truncated UDP frame");
+            tracing::debug!(len, remaining = data.len() - offset, "UDP 帧被截断");
             break;
         }
         match udp.send(&data[offset..offset + len]).await {

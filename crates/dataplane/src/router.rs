@@ -27,7 +27,7 @@ pub fn router(state: Arc<DataPlaneState>) -> Router {
         .with_state(state)
 }
 
-/// Only the VLESS WebSocket route, for the master whose `/` serves the SPA.
+/// 仅包含 VLESS WebSocket 路由；主节点的 `/` 用于托管 SPA。
 pub fn ws_only_router(state: Arc<DataPlaneState>) -> Router {
     Router::new()
         .route("/ws", get(ws_handler))
@@ -38,7 +38,7 @@ async fn health(State(state): State<Arc<DataPlaneState>>) -> Json<serde_json::Va
     Json(serde_json::json!({
         "ok": true,
         "service": "rust-vless-node",
-        "version": env!("CARGO_PKG_VERSION"),
+        "version": rust_vless_common::version(),
         "nodeId": state.node_id.to_string(),
         "users": state.users.len(),
         "activeConnections": state.active_connections(),

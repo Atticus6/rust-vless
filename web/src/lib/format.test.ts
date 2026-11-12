@@ -4,7 +4,7 @@
  * 使用固定时钟与边界值锁定字节单位换算、时间戳与相对时间的展示契约，
  * 避免这些纯函数在页面重构时悄悄改变输出。
  */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, setSystemTime } from 'bun:test'
 import { formatBytes, formatRelative, formatTime, shortId } from './format'
 
 describe('formatBytes', () => {
@@ -35,13 +35,13 @@ describe('formatTime', () => {
 
   it('renders the locale string for real timestamps', () => {
     const value = Date.UTC(2026, 0, 2, 3, 4, 5)
-    expect(formatTime(value)).toBe(new Date(value).toLocaleString())
+    expect(formatTime(value, 'zh-CN')).toBe(new Date(value).toLocaleString('zh-CN'))
   })
 })
 
 describe('formatRelative', () => {
   afterEach(() => {
-    vi.useRealTimers()
+    setSystemTime()
   })
 
   it('renders 从未 for a missing timestamp', () => {
@@ -50,15 +50,26 @@ describe('formatRelative', () => {
 
   it('buckets recent timestamps', () => {
     const now = Date.UTC(2026, 0, 1, 12, 0, 0)
-    vi.useFakeTimers()
-    vi.setSystemTime(now)
+    setSystemTime(new Date(now))
+    const relative = new Intl.RelativeTimeFormat('zh-CN', { numeric: 'auto' })
 
     expect(formatRelative(now - 30_000)).toBe('刚刚')
-    expect(formatRelative(now - 5 * 60_000)).toBe('5 分钟前')
-    expect(formatRelative(now - 2 * 3_600_000)).toBe('2 小时前')
+    expect(formatRelative(now - 5 * 60_000)).toBe(relative.format(-5, 'minute'))
+    expect(formatRelative(now - 2 * 3_600_000)).toBe(relative.format(-2, 'hour'))
     expect(formatRelative(now - 2 * 86_400_000)).toBe(
-      new Date(now - 2 * 86_400_000).toLocaleString(),
+      new Date(now - 2 * 86_400_000).toLocaleString('zh-CN'),
     )
+  })
+
+  it('uses English labels when the locale is English', () => {
+    const now = Date.UTC(2026, 0, 1, 12, 0, 0)
+    setSystemTime(new Date(now))
+    const relative = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto' })
+
+    expect(formatRelative(0, 'en-US')).toBe('Never')
+    expect(formatRelative(now - 30_000, 'en-US')).toBe('just now')
+    expect(formatRelative(now - 5 * 60_000, 'en-US')).toBe(relative.format(-5, 'minute'))
+    expect(formatTime(now, 'en-US')).toBe(new Date(now).toLocaleString('en-US'))
   })
 })
 

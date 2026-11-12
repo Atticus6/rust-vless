@@ -161,8 +161,9 @@ impl NodeControl for NodeControlService {
                                 client_addr: log.client_addr,
                             })
                             .collect();
-                        if let Err(err) = inbound_state.db.insert_access_logs(&logs).await {
-                            tracing::warn!(%node_id, error = %err, "failed to store access logs");
+                        // 节点上报的访问日志同样写入独立日志文件。
+                        if let Err(err) = inbound_state.access.append_many(&logs).await {
+                            tracing::warn!(%node_id, error = %err, "写入访问日志文件失败");
                         }
                     }
                     Ok(NodeMessage {
@@ -181,6 +182,20 @@ impl NodeControl for NodeControlService {
                             {
                                 tracing::warn!(%node_id, link = %link.link_id, error = %err, "failed to record link traffic");
                             }
+                        }
+                    }
+                    Ok(NodeMessage {
+                        payload: Some(NodePayload::UpgradeResult(result)),
+                    }) => {
+                        if result.ok {
+                            tracing::info!(%node_id, version = %result.version, "节点自升级已启动");
+                        } else {
+                            tracing::warn!(
+                                %node_id,
+                                version = %result.version,
+                                error = %result.error,
+                                "节点自升级失败"
+                            );
                         }
                     }
                     Ok(_) => {}

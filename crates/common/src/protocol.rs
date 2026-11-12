@@ -4,10 +4,10 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 use thiserror::Error;
 use uuid::Uuid;
 
-/// VLESS protocol version implemented by this server.
+/// 本服务实现的 VLESS 协议版本。
 pub const VLESS_VERSION: u8 = 0;
 
-/// Maximum accepted WebSocket binary message size.
+/// WebSocket 单条二进制消息的最大长度。
 pub const MAX_WS_MESSAGE: usize = 256 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,13 +42,13 @@ pub enum ParseError {
     InvalidAddress(String),
 }
 
-/// Parse a VLESS request:
+/// 解析一个 VLESS 请求：
 ///
-/// `| version(1) | uuid(16) | addon_len(1) | addon | command(1) | port(2BE) |
-///  atyp(1) | address | payload |`
+/// 字节布局：
+/// `| version(1) | uuid(16) | addon_len(1) | addon | command(1) | port(2BE) |`
+/// `atyp(1) | address | payload |`
 ///
-/// The UUID must exist in `users`; the target is returned as `host:port`
-/// (IPv6 hosts are bracketed).
+/// UUID 必须存在于 `users`；目标地址以 `host:port` 返回（IPv6 会加方括号）。
 pub fn parse_request(data: &[u8], users: &UserRegistry) -> Result<ParsedRequest, ParseError> {
     if data.len() < 22 {
         return Err(ParseError::TooShort(data.len()));
@@ -160,7 +160,7 @@ mod tests {
         let mut out = Vec::new();
         out.push(VLESS_VERSION);
         out.extend_from_slice(USER.as_bytes());
-        out.push(0); // addon length
+        out.push(0); // addon 长度
         out.push(cmd);
         out.extend_from_slice(&port.to_be_bytes());
         out.push(atyp);

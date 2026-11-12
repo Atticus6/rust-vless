@@ -35,8 +35,7 @@ pub struct OutboundConnection {
 #[derive(Debug)]
 pub struct RelayError {
     pub message: String,
-    /// Whether the downstream may already have received the VLESS header.
-    /// Once true we must not replay the session through a direct fallback.
+    /// 下游可能已经收到 VLESS 头。一旦为 true，就不能再改用直连重放会话。
     pub header_sent: bool,
 }
 
@@ -119,7 +118,7 @@ async fn connect_rpc(
             Some(RelayPacket {
                 payload: Some(RelayPayload::Data(_)),
             }) => {
-                // A relay should not send data before Ready. Ignore stray data.
+                // 中转节点不应在 Ready 之前发送数据；忽略异常数据帧。
             }
             Some(_) => {}
             None => return Err(RelayError::maybe_sent("relay closed before ready")),

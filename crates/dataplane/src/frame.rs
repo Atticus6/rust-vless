@@ -16,8 +16,8 @@ use tonic::{Status, Streaming};
 const CHANNEL_SIZE: usize = 64;
 const PING_INTERVAL: Duration = Duration::from_secs(30);
 
-/// Transport-agnostic byte stream. WebSocket, HTTP relay and RPC relay are all
-/// reduced to two channels so the session layer does not care about the wire.
+/// 与传输方式无关的字节流。WebSocket、HTTP 中转与 RPC 中转都被归一成两个
+/// 通道，会话层因此不需要关心底层协议。
 pub struct FrameIo {
     pub reader: mpsc::Receiver<Vec<u8>>,
     pub writer: mpsc::Sender<Vec<u8>>,
@@ -138,8 +138,7 @@ pub fn from_client_ws_parts(
     }
 }
 
-/// RPC relay client side: request packets are `RelayPacket`, response packets
-/// are demultiplexed into raw data frames.
+/// RPC 中转客户端方向：请求包为 `RelayPacket`，响应包拆成原始数据帧。
 pub fn from_relay_client(
     stream: Streaming<RelayPacket>,
     out_tx: mpsc::Sender<RelayPacket>,
@@ -183,7 +182,7 @@ pub fn from_relay_client(
     }
 }
 
-/// RPC relay server side: response packets are `Result<RelayPacket, Status>`.
+/// RPC 中转服务端方向：响应包为 `Result<RelayPacket, Status>`。
 pub fn from_relay_server(
     stream: Streaming<RelayPacket>,
     out_tx: mpsc::Sender<Result<RelayPacket, Status>>,

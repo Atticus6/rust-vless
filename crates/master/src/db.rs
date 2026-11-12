@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use turso::{params, params_from_iter, Builder, Connection, Database, Row, Value};
+use turso::{params, Builder, Connection, Database, Row};
 use uuid::Uuid;
 
 use rust_vless_common::util::{now_ms, random_hex};
@@ -18,9 +18,10 @@ pub enum DbError {
     Invalid(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeleteAdminOutcome {
-    Deleted,
+    /// 已删除，并返回同一事务内实际删除的代理用户 ID。
+    Deleted(Vec<Uuid>),
     NotFound,
     LastAdmin,
 }
@@ -235,7 +236,7 @@ pub struct StatsView {
     pub links_total: i64,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct AccessLogInput {
     pub session_id: String,
     pub user_id: String,
@@ -448,6 +449,9 @@ CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS pending_log_purges (
+    user_id TEXT PRIMARY KEY
+);
 CREATE INDEX IF NOT EXISTS idx_sessions_admin ON sessions(admin_id);
 CREATE INDEX IF NOT EXISTS idx_users_owner ON proxy_users(owner_id);
 CREATE INDEX IF NOT EXISTS idx_samples_user ON traffic_samples(user_id, reported_at);
@@ -459,14 +463,31 @@ CREATE INDEX IF NOT EXISTS idx_links_from ON node_links(from_node_id);
         )
         .await?;
 
-        // Additive migrations for databases created by earlier builds.
-        for sql in [
-            "ALTER TABLE nodes ADD COLUMN http_url TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE nodes ADD COLUMN rpc_url TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE nodes ADD COLUMN is_master INTEGER NOT NULL DEFAULT 0",
+        // 为旧版本创建的数据库做增量迁移。
+        //
+        // 先用 PRAGMA table_info 判断列是否存在，再执行 ALTER：不依赖各版本
+        // SQLite/Turso 的错误文案，重复启动不会失败，真正的锁/IO 错误会照常上报。
+        for (table, column, definition) in [
+            ("nodes", "http_url", "TEXT NOT NULL DEFAULT ''"),
+            ("nodes", "rpc_url", "TEXT NOT NULL DEFAULT ''"),
+            ("nodes", "is_master", "INTEGER NOT NULL DEFAULT 0"),
+            ("admins", "sub_token", "TEXT NOT NULL DEFAULT ''"),
         ] {
-            let _ = conn.execute(sql, ()).await;
+            if !column_exists(&conn, table, column).await? {
+                conn.execute(
+                    &format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"),
+                    (),
+                )
+                .await?;
+            }
         }
+        // 订阅 token 必须唯一；空字符串表示「尚未生成」，用部分索引排除。
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_admins_sub_token
+             ON admins(sub_token) WHERE sub_token <> ''",
+            (),
+        )
+        .await?;
         Ok(())
     }
 
@@ -494,6 +515,43 @@ CREATE INDEX IF NOT EXISTS idx_links_from ON node_links(from_node_id);
             "INSERT INTO settings (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             params![key, value],
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// 登记未能立即清理的访问日志用户；主键保证并发登记不会互相覆盖。
+    pub async fn queue_log_purges(&self, user_ids: &[String]) -> DbResult<()> {
+        let conn = self.connect()?;
+        for user_id in user_ids {
+            conn.execute(
+                "INSERT OR IGNORE INTO pending_log_purges (user_id) VALUES (?1)",
+                params![user_id.clone()],
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
+    /// 列出待清理的用户 ID。
+    pub async fn list_pending_log_purges(&self) -> DbResult<Vec<String>> {
+        let conn = self.connect()?;
+        let mut rows = conn
+            .query("SELECT user_id FROM pending_log_purges", ())
+            .await?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next().await? {
+            out.push(row.get(0)?);
+        }
+        Ok(out)
+    }
+
+    /// 清理成功后逐条确认，只删除本次处理过的 ID。
+    pub async fn clear_log_purge(&self, user_id: &str) -> DbResult<()> {
+        let conn = self.connect()?;
+        conn.execute(
+            "DELETE FROM pending_log_purges WHERE user_id = ?1",
+            params![user_id.to_string()],
         )
         .await?;
         Ok(())
@@ -569,6 +627,143 @@ CREATE INDEX IF NOT EXISTS idx_links_from ON node_links(from_node_id);
         Ok(record)
     }
 
+    /// 原子地创建第一个管理员；已有账号时返回 `None`。
+    ///
+    /// 首次安装页面可能被并发提交，`BEGIN IMMEDIATE` 保证只有一个请求能
+    /// 观察到空表并插入，避免出现两个「初始管理员」。
+    pub async fn create_first_admin_if_empty(
+        &self,
+        email: &str,
+        password_hash: &str,
+        role: Role,
+    ) -> DbResult<Option<AdminRecord>> {
+        let email = email.trim().to_lowercase();
+        let conn = self.connect()?;
+        conn.execute("BEGIN IMMEDIATE", ()).await?;
+
+        let result: DbResult<Option<AdminRecord>> = async {
+            let mut rows = conn.query("SELECT COUNT(*) FROM admins", ()).await?;
+            let count: i64 = match rows.next().await? {
+                Some(row) => row.get(0)?,
+                None => 0,
+            };
+            drop(rows);
+            if count > 0 {
+                return Ok(None);
+            }
+
+            let record = AdminRecord {
+                id: Uuid::new_v4(),
+                email,
+                password_hash: password_hash.to_string(),
+                role,
+                created_at: now_ms(),
+            };
+            conn.execute(
+                "INSERT INTO admins (id, email, password_hash, role, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    record.id.to_string(),
+                    record.email.clone(),
+                    record.password_hash.clone(),
+                    record.role.as_str(),
+                    record.created_at
+                ],
+            )
+            .await?;
+            Ok(Some(record))
+        }
+        .await;
+
+        match result {
+            Ok(Some(record)) => {
+                conn.execute("COMMIT", ()).await?;
+                Ok(Some(record))
+            }
+            Ok(None) => {
+                conn.execute("ROLLBACK", ()).await?;
+                Ok(None)
+            }
+            Err(err) => {
+                let _ = conn.execute("ROLLBACK", ()).await;
+                Err(err)
+            }
+        }
+    }
+
+    /// 读取账号的订阅 token，没有则生成并持久化。
+    ///
+    /// token 是 32 字节随机串；一旦生成就保持不变，避免客户端订阅地址失效。
+    pub async fn get_or_create_sub_token(&self, admin_id: Uuid) -> DbResult<String> {
+        let conn = self.connect()?;
+        let token = random_hex(32);
+        // 条件更新保证并发首次访问只有一个 token 生效。
+        let updated = conn
+            .execute(
+                "UPDATE admins SET sub_token = ?1 WHERE id = ?2 AND sub_token = ''",
+                params![token.clone(), admin_id.to_string()],
+            )
+            .await?;
+        if updated > 0 {
+            return Ok(token);
+        }
+        // 更新未生效：要么其他请求刚写入 token，要么账号不存在。
+        let mut rows = conn
+            .query(
+                "SELECT sub_token FROM admins WHERE id = ?1 AND sub_token <> ''",
+                params![admin_id.to_string()],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(row.get(0)?),
+            None => Err(DbError::NotFound),
+        }
+    }
+
+    /// 按订阅 token 查找账号；空 token 永远不匹配。
+    pub async fn admin_by_sub_token(&self, token: &str) -> DbResult<Option<AdminRecord>> {
+        if token.is_empty() {
+            return Ok(None);
+        }
+        let conn = self.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, email, password_hash, role, created_at
+                 FROM admins WHERE sub_token = ?1 AND sub_token <> ''",
+                params![token],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(Some(admin_from_row(&row)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// 列出某账号名下启用的代理用户（订阅只包含启用项）。
+    pub async fn enabled_proxy_users_for_owner(
+        &self,
+        owner: Uuid,
+    ) -> DbResult<Vec<(Uuid, String)>> {
+        let conn = self.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, name FROM proxy_users
+                 WHERE owner_id = ?1 AND enabled = 1
+                 ORDER BY created_at ASC",
+                params![owner.to_string()],
+            )
+            .await?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next().await? {
+            let id: String = row.get(0)?;
+            let name: String = row.get(1)?;
+            if let Ok(id) = Uuid::parse_str(&id) {
+                out.push((id, name));
+            }
+        }
+        Ok(out)
+    }
+
     pub async fn list_admins(&self) -> DbResult<Vec<AdminRecord>> {
         let conn = self.connect()?;
         let mut rows = conn
@@ -584,8 +779,8 @@ CREATE INDEX IF NOT EXISTS idx_links_from ON node_links(from_node_id);
         Ok(out)
     }
 
-    /// Delete an admin atomically with the last-admin check. Two concurrent
-    /// requests cannot both observe two admins and delete each other.
+    /// 原子地删除管理员并检查是否为最后一个。
+    /// 两个并发请求无法同时观察到两个管理员并互相删除。
     pub async fn delete_admin_checked(&self, id: Uuid) -> DbResult<DeleteAdminOutcome> {
         let conn = self.connect()?;
         conn.execute("BEGIN IMMEDIATE", ()).await?;
@@ -616,6 +811,22 @@ CREATE INDEX IF NOT EXISTS idx_links_from ON node_links(from_node_id);
                 return Ok(DeleteAdminOutcome::NotFound);
             }
 
+            // 在同一事务内读取将被级联删除的用户，事务外读取会漏掉并发新建的用户。
+            let mut rows = conn
+                .query(
+                    "SELECT id FROM proxy_users WHERE owner_id = ?1",
+                    params![id_s.clone()],
+                )
+                .await?;
+            let mut owned_users = Vec::new();
+            while let Some(row) = rows.next().await? {
+                let raw: String = row.get(0)?;
+                if let Ok(user_id) = Uuid::parse_str(&raw) {
+                    owned_users.push(user_id);
+                }
+            }
+            drop(rows);
+
             conn.execute(
                 "DELETE FROM traffic_totals WHERE user_id IN (SELECT id FROM proxy_users WHERE owner_id = ?1)",
                 params![id_s.clone()],
@@ -638,14 +849,14 @@ CREATE INDEX IF NOT EXISTS idx_links_from ON node_links(from_node_id);
             .await?;
             conn.execute("DELETE FROM admins WHERE id = ?1", params![id_s])
                 .await?;
-            Ok(DeleteAdminOutcome::Deleted)
+            Ok(DeleteAdminOutcome::Deleted(owned_users))
         }
         .await;
 
         match result {
-            Ok(DeleteAdminOutcome::Deleted) => {
+            Ok(DeleteAdminOutcome::Deleted(owned_users)) => {
                 conn.execute("COMMIT", ()).await?;
-                Ok(DeleteAdminOutcome::Deleted)
+                Ok(DeleteAdminOutcome::Deleted(owned_users))
             }
             Ok(other) => {
                 conn.execute("ROLLBACK", ()).await?;
@@ -739,7 +950,7 @@ CREATE INDEX IF NOT EXISTS idx_links_from ON node_links(from_node_id);
         Ok((record, token))
     }
 
-    /// Create the master's own node row once, then keep its URLs in sync.
+    /// 只在首次运行时创建主节点记录，之后保持其 URL 同步。
     pub async fn ensure_master_node(
         &self,
         id: Uuid,
@@ -916,8 +1127,8 @@ CREATE INDEX IF NOT EXISTS idx_links_from ON node_links(from_node_id);
         let Some(to) = self.get_node(to_id).await? else {
             return Err(DbError::NotFound);
         };
-        // Reject operator-created cycles. Runtime `visited` checks still guard
-        // against stale topology or manual database edits.
+        // 拒绝操作员创建成环的连线；运行时 `visited` 检查仍用于防御
+        // 过期拓扑或手工改库。
         let existing = self.list_links().await?;
         if reaches(&existing, to_id, from_id) {
             return Err(DbError::Conflict("link would create a cycle".into()));
@@ -1315,131 +1526,46 @@ CREATE INDEX IF NOT EXISTS idx_links_from ON node_links(from_node_id);
         })
     }
 
-    pub async fn insert_access_logs(&self, logs: &[AccessLogInput]) -> DbResult<()> {
-        if logs.is_empty() {
-            return Ok(());
-        }
-        let conn = self.connect()?;
-        for log in logs {
-            let duration = (log.ended_at_ms - log.started_at_ms).max(0);
-            let path = serde_json::to_string(&log.path).unwrap_or_else(|_| "[]".into());
-            conn.execute(
-                "INSERT INTO access_logs
-                 (session_id, user_id, entry_node_id, target, command, started_at, ended_at,
-                  duration_ms, up_bytes, down_bytes, status, error, path, client_addr)
-                 SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14
-                 WHERE NOT EXISTS (SELECT 1 FROM access_logs WHERE session_id = ?1)",
-                params![
-                    log.session_id.clone(),
-                    log.user_id.clone(),
-                    log.entry_node_id.clone(),
-                    log.target.clone(),
-                    log.command.clone(),
-                    log.started_at_ms,
-                    log.ended_at_ms,
-                    duration,
-                    i64::try_from(log.up_bytes).unwrap_or(i64::MAX),
-                    i64::try_from(log.down_bytes).unwrap_or(i64::MAX),
-                    log.status.clone(),
-                    log.error.clone(),
-                    path,
-                    log.client_addr.clone()
-                ],
-            )
-            .await?;
-        }
-        Ok(())
-    }
-
-    pub async fn query_access_logs(
+    /// 读出旧版数据库中的全部访问日志，用于一次性迁移到独立文件。
+    /// 按自增 ID 游标读取一批历史日志；保留期删除旧行不会影响游标。
+    pub async fn access_logs_batch_after(
         &self,
-        owner: Option<Uuid>,
-        query: &AccessLogQuery,
-    ) -> DbResult<AccessLogPage> {
-        let limit = query.limit.clamp(1, 200);
-        let offset = query.offset.max(0);
-        let mut clauses: Vec<String> = Vec::new();
-        let mut values: Vec<Value> = Vec::new();
-
-        if let Some(owner) = owner {
-            clauses.push(format!(
-                "user_id IN (SELECT id FROM proxy_users WHERE owner_id = ?{})",
-                values.len() + 1
-            ));
-            values.push(Value::Text(owner.to_string()));
-        }
-        if let Some(user) = &query.user_id {
-            clauses.push(format!("user_id = ?{}", values.len() + 1));
-            values.push(Value::Text(user.clone()));
-        }
-        if let Some(node) = &query.node_id {
-            clauses.push(format!("entry_node_id = ?{}", values.len() + 1));
-            values.push(Value::Text(node.clone()));
-        }
-        if let Some(status) = &query.status {
-            clauses.push(format!("status = ?{}", values.len() + 1));
-            values.push(Value::Text(status.clone()));
-        }
-        if let Some(target) = &query.target {
-            clauses.push(format!("target LIKE ?{}", values.len() + 1));
-            values.push(Value::Text(format!("%{target}%")));
-        }
-        if let Some(from) = query.from {
-            clauses.push(format!("started_at >= ?{}", values.len() + 1));
-            values.push(Value::Integer(from));
-        }
-        if let Some(to) = query.to {
-            clauses.push(format!("started_at <= ?{}", values.len() + 1));
-            values.push(Value::Integer(to));
-        }
-        let where_sql = if clauses.is_empty() {
-            String::new()
-        } else {
-            format!(" WHERE {}", clauses.join(" AND "))
-        };
-
+        after_id: i64,
+        limit: i64,
+    ) -> DbResult<Vec<(i64, AccessLogInput)>> {
         let conn = self.connect()?;
-        let mut total = 0i64;
         let mut rows = conn
             .query(
-                &format!("SELECT COUNT(*) FROM access_logs{where_sql}"),
-                params_from_iter(values.clone()),
+                "SELECT id, session_id, user_id, entry_node_id, target, command,
+                        started_at, ended_at, up_bytes, down_bytes, status, error,
+                        path, client_addr
+                 FROM access_logs WHERE id > ?1 ORDER BY id ASC LIMIT ?2",
+                params![after_id, limit.max(1)],
             )
             .await?;
-        if let Some(row) = rows.next().await? {
-            total = row.get(0)?;
-        }
-        drop(rows);
-
-        let mut data_values = values;
-        data_values.push(Value::Integer(limit));
-        data_values.push(Value::Integer(offset));
-        let mut rows = conn
-            .query(
-                &format!(
-                    "SELECT id, session_id, user_id, entry_node_id, target, command,
-                            started_at, ended_at, duration_ms, up_bytes, down_bytes,
-                            status, error, path, client_addr
-                     FROM access_logs{where_sql}
-                     ORDER BY started_at DESC
-                     LIMIT ?{} OFFSET ?{}",
-                    data_values.len() - 1,
-                    data_values.len()
-                ),
-                params_from_iter(data_values),
-            )
-            .await?;
-        let mut items = Vec::new();
+        let mut out = Vec::new();
         while let Some(row) = rows.next().await? {
-            items.push(access_log_from_row(&row)?);
+            let path: String = row.get(12)?;
+            out.push((
+                row.get(0)?,
+                AccessLogInput {
+                    session_id: row.get(1)?,
+                    user_id: row.get(2)?,
+                    entry_node_id: row.get(3)?,
+                    target: row.get(4)?,
+                    command: row.get(5)?,
+                    started_at_ms: row.get(6)?,
+                    ended_at_ms: row.get(7)?,
+                    up_bytes: u64::try_from(row.get::<i64>(8)?).unwrap_or(0),
+                    down_bytes: u64::try_from(row.get::<i64>(9)?).unwrap_or(0),
+                    status: row.get(10)?,
+                    error: row.get(11)?,
+                    path: serde_json::from_str(&path).unwrap_or_default(),
+                    client_addr: row.get(13)?,
+                },
+            ));
         }
-
-        Ok(AccessLogPage {
-            items,
-            total,
-            limit,
-            offset,
-        })
+        Ok(out)
     }
 
     pub async fn prune_traffic_samples(&self, before_ms: i64) -> DbResult<u64> {
@@ -1596,6 +1722,20 @@ fn reaches(links: &[LinkRecord], start: Uuid, goal: Uuid) -> bool {
     false
 }
 
+/// 判断表中是否已有指定列（用于增量迁移）。
+async fn column_exists(conn: &Connection, table: &str, column: &str) -> DbResult<bool> {
+    let mut rows = conn
+        .query(&format!("PRAGMA table_info({table})"), ())
+        .await?;
+    while let Some(row) = rows.next().await? {
+        let name: String = row.get(1)?;
+        if name == column {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn admin_from_row(row: &Row) -> DbResult<AdminRecord> {
     let id: String = row.get(0)?;
     let role_raw: String = row.get(3)?;
@@ -1659,27 +1799,6 @@ fn proxy_user_from_row(row: &Row) -> DbResult<ProxyUserRecord> {
     })
 }
 
-fn access_log_from_row(row: &Row) -> DbResult<AccessLogView> {
-    let path_raw: String = row.get(13)?;
-    Ok(AccessLogView {
-        id: row.get(0)?,
-        session_id: row.get(1)?,
-        user_id: row.get(2)?,
-        entry_node_id: row.get(3)?,
-        target: row.get(4)?,
-        command: row.get(5)?,
-        started_at: row.get(6)?,
-        ended_at: row.get(7)?,
-        duration_ms: row.get(8)?,
-        up_bytes: row.get::<i64>(9)?.max(0) as u64,
-        down_bytes: row.get::<i64>(10)?.max(0) as u64,
-        status: row.get(11)?,
-        error: row.get(12)?,
-        path: serde_json::from_str(&path_raw).unwrap_or_default(),
-        client_addr: row.get(14)?,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1710,6 +1829,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn first_admin_and_subscription_are_consistent() {
+        let db = db().await;
+        assert!(db
+            .create_first_admin_if_empty("Root@Example.com", "hash", Role::Admin)
+            .await
+            .unwrap()
+            .is_some());
+        // 已有账号时拒绝重复开户。
+        assert!(db
+            .create_first_admin_if_empty("other@example.com", "hash", Role::Admin)
+            .await
+            .unwrap()
+            .is_none());
+
+        let admin = db
+            .find_admin_by_email("root@example.com")
+            .await
+            .unwrap()
+            .unwrap();
+        let (first, second) = tokio::join!(
+            db.get_or_create_sub_token(admin.id),
+            db.get_or_create_sub_token(admin.id)
+        );
+        let token = first.unwrap();
+        // 并发首次读取必须得到同一个 token。
+        assert_eq!(second.unwrap(), token);
+        assert_eq!(
+            db.admin_by_sub_token(&token).await.unwrap().unwrap().id,
+            admin.id
+        );
+        assert!(db.admin_by_sub_token("").await.unwrap().is_none());
+        assert!(db.admin_by_sub_token("missing").await.unwrap().is_none());
+
+        let other = db
+            .create_admin("other@example.com", "hash", Role::User)
+            .await
+            .unwrap();
+        let enabled = db.create_proxy_user(admin.id, "enabled").await.unwrap();
+        let disabled = db.create_proxy_user(admin.id, "disabled").await.unwrap();
+        db.update_proxy_user(disabled.id, None, Some(false))
+            .await
+            .unwrap();
+        let foreign = db.create_proxy_user(other.id, "foreign").await.unwrap();
+
+        let owned = db.enabled_proxy_users_for_owner(admin.id).await.unwrap();
+        assert_eq!(owned.len(), 1);
+        assert_eq!(owned[0].0, enabled.id);
+        assert!(!owned
+            .iter()
+            .any(|(id, _)| *id == disabled.id || *id == foreign.id));
+    }
+
+    #[tokio::test]
+    async fn first_admin_creation_is_atomic() {
+        let db = db().await;
+        let (first, second) = tokio::join!(
+            db.create_first_admin_if_empty("a@example.com", "hash", Role::Admin),
+            db.create_first_admin_if_empty("b@example.com", "hash", Role::Admin)
+        );
+        let created = [first.unwrap().is_some(), second.unwrap().is_some()]
+            .into_iter()
+            .filter(|created| *created)
+            .count();
+        assert_eq!(created, 1);
+        assert_eq!(db.count_admins().await.unwrap(), 1);
+    }
+
+    #[tokio::test]
     async fn admin_deletion_is_guarded() {
         let db = db().await;
         let first = db
@@ -1720,10 +1907,13 @@ mod tests {
             .create_admin("second@example.com", "hash", Role::User)
             .await
             .unwrap();
+        let owned = db.create_proxy_user(second.id, "owned").await.unwrap();
         assert_eq!(
             db.delete_admin_checked(second.id).await.unwrap(),
-            DeleteAdminOutcome::Deleted
+            DeleteAdminOutcome::Deleted(vec![owned.id])
         );
+        // 事务内删除的用户不应再存在。
+        assert!(db.get_proxy_user(owned.id).await.unwrap().is_none());
         assert_eq!(
             db.delete_admin_checked(first.id).await.unwrap(),
             DeleteAdminOutcome::LastAdmin
@@ -1785,45 +1975,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn access_logs_and_link_traffic() {
+    async fn link_traffic_accumulates() {
         let db = db().await;
-        let admin = db.create_admin("a@b.c", "hash", Role::Admin).await.unwrap();
         let (a, _) = db.create_node("a", false).await.unwrap();
         let (b, _) = db.create_node("b", false).await.unwrap();
         let link = db.create_link(a.id, b.id, "rpc", 0).await.unwrap();
-        let user = db.create_proxy_user(admin.id, "u").await.unwrap();
-
-        db.insert_access_logs(&[AccessLogInput {
-            session_id: "s1".into(),
-            user_id: user.id.to_string(),
-            entry_node_id: a.id.to_string(),
-            target: "example.com:443".into(),
-            command: "tcp".into(),
-            started_at_ms: now_ms() - 500,
-            ended_at_ms: now_ms(),
-            up_bytes: 10,
-            down_bytes: 20,
-            status: "ok".into(),
-            error: String::new(),
-            path: vec![a.id.to_string(), b.id.to_string()],
-            client_addr: "127.0.0.1:1".into(),
-        }])
-        .await
-        .unwrap();
-
-        let page = db
-            .query_access_logs(
-                None,
-                &AccessLogQuery {
-                    limit: 50,
-                    ..Default::default()
-                },
-            )
-            .await
-            .unwrap();
-        assert_eq!(page.total, 1);
-        assert_eq!(page.items[0].path.len(), 2);
-        assert_eq!(page.items[0].duration_ms, 500);
 
         db.record_link_traffic(&link.id.to_string(), 100, 200, 1)
             .await
@@ -1831,6 +1987,40 @@ mod tests {
         let rows = db.link_traffic_window(0).await.unwrap();
         assert_eq!(rows[0].up_bytes, 100);
         assert_eq!(rows[0].sessions, 1);
+    }
+
+    #[tokio::test]
+    async fn reopen_file_database_applies_migrations_once() {
+        // 文件库可以真正验证「第二次启动」路径：增量迁移与部分唯一索引必须
+        // 都能在已迁移的库上重复执行而不报错。
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("master.db");
+        let path = path.to_string_lossy().to_string();
+
+        let db = Db::open(&path).await.unwrap();
+        let admin = db
+            .create_admin("root@example.com", "hash", Role::Admin)
+            .await
+            .unwrap();
+        let token = db.get_or_create_sub_token(admin.id).await.unwrap();
+        drop(db);
+
+        let reopened = Db::open(&path).await.unwrap();
+        assert_eq!(reopened.count_admins().await.unwrap(), 1);
+        assert_eq!(
+            reopened
+                .admin_by_sub_token(&token)
+                .await
+                .unwrap()
+                .unwrap()
+                .id,
+            admin.id
+        );
+        assert!(
+            column_exists(&reopened.connect().unwrap(), "admins", "sub_token")
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]

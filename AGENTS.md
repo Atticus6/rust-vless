@@ -4,6 +4,19 @@
 
 执行 `bun install`。
 
+## 技术栈约定
+
+- **前端依赖**：统一用 bun（`bun.lock` 是唯一锁文件，不要提交 `package-lock.json`）。
+- **RPC 调用**：页面通过 `client.<方法名>.useQuery()` / `.useMutation()`（`web/src/lib/trpc.ts`）访问主节点；hook 的类型由 `web/src/lib/connect.ts` 的函数签名自动推导，**不要维护路由表或手写 procedure 类型**。新增接口只需在 `connect.ts` 里加函数。
+- **鉴权跳转**：会话过期与登录跳转**只在 `web/src/lib/guards.ts` 与 `web/src/routes/_app.tsx` 处理**；`connect.ts` 与页面代码不得调用 `window.location.assign`，也不得为「会话过期」自行 `clearAuth`，只抛出 `RpcError`。新增需登录的路由使用 `requireSession()` / `withSession()`。
+- **国际化**：`web/src/i18n/zh.ts` 是唯一事实来源，`en.ts` 声明为 `Record<MessageKey, string>`；`t()` 只接受已声明的 key，禁止传中文原文。新增文案先加 `zh.ts` 再加 `en.ts`。
+- **前端测试**：使用 bun 内置的 `bun test`（`bun:test`），不要引入 vitest/jest。**只测纯函数**（映射、格式化、错误归一化、i18n、存储边界），不写端到端或依赖运行中主节点的测试，也不加载 DOM 组件测试。
+- **路由**：TanStack Router 文件路由，页面文件放在 `web/src/routes/`；`web/src/routeTree.gen.ts` 由 `tsr generate` / Vite 插件生成，禁止手改。
+- **样式**：Tailwind CSS v4 通过 `@tailwindcss/vite` 插件编译，不要新增 PostCSS 配置；组件库为 HeroUI v3。
+- **版本号**：`version.txt` 是唯一来源，Rust 通过 `rust_vless_common::version()` 读取；发布标签必须与之一致。
+- **访问日志**：写入独立 JSON Lines 文件，查询由 DuckDB 完成；不要把访问日志重新写入 SQLite。
+- **生成代码**：`web/src/gen/rpc_pb.ts`、`web/src/routeTree.gen.ts` 由工具生成，不要求中文注释，也不要手工修改。
+
 ## 代码注释
 
 注释的目标是让陌生人只读注释就能理解「为什么」，而不是复述「做了什么」。
@@ -14,7 +27,7 @@
 - **复杂逻辑先写注释再写代码**：状态机、协议解析、加密/鉴权、并发与锁、资源清理、重连与退避、错误映射，这些都必须有分步注释说明每个状态/分支的来由。
 - **安全与运维相关代码必须注明风险**：凭证处理、敏感数据日志脱敏、端口/权限、默认配置的取舍，需写明「为什么这样做」以及修改时要注意什么。
 - **注释与代码同步演进**：改动行为时同步更新注释；发现过期注释必须修掉，不得留误导性文档。
-- 注释语言：与所在文件保持一致，本仓库以中文为主；标识符、术语、日志字段名保留英文原文。
+- 注释语言：统一使用中文（标识符、协议字段名、日志字段名保留英文原文）；自动生成的代码除外。
 - 不要用注释掉代码来「保留」旧实现，用版本控制即可。
 
 ## 测试用例
@@ -23,11 +36,11 @@
 
 - **测试随代码一起提交**：新增行为 → 新增测试；修复 bug → 先写能复现该 bug 的失败测试，再修到通过。
 - **Rust**：单元测试放在被测代码同文件的 `#[cfg(test)] mod tests` 中，覆盖正常路径、边界值、错误分支；跨 crate 或涉及真实 I/O 的场景放 `tests/` 集成测试。异步测试用 `#[tokio::test]`，注意避免依赖真实网络与固定端口。
-- **Web（TypeScript/React）**：纯逻辑与工具函数必须有单测；涉及协议/状态转换的逻辑优先测，UI 组件测关键交互与渲染分支。
+- **Web（TypeScript/React）**：只测纯逻辑与工具函数（协议映射、状态转换、格式化、i18n、存储边界）；UI 交互与浏览器路径不做 E2E，改由 Rust 侧的 gRPC-Web 帧测试覆盖。测试使用 `bun:test`，需要 `localStorage` 时由 `web/src/test/setup.ts` 注入内存实现。
 - **必须覆盖的场景**：空输入与非法输入、边界（0/最大值/超长）、并发与超时、重连与部分失败、权限与鉴权失败路径、协议编解码的往返一致性（encode→decode 等价）。
 - **测试要确定性**：使用固定种子/固定时钟/临时目录，不依赖执行顺序与外部服务；需要时间的逻辑注入 clock 或使用可缩短的超时，禁止 `sleep` 等计时。
 - **断言要有意义**：断言具体值或状态，不使用只验证「不 panic」的空断言；每个用例只验证一件事，用例名要能描述期望行为（如 `rejects_expired_token`）。
-- **提交前必须本地跑通**：Rust 执行 `cargo test --workspace`，且 `cargo clippy --workspace --all-targets` 无新增告警；Web 在 `web/` 下执行 `bun run test`、`bun run typecheck` 与 `bun run build`。测试失败不得提交，也不得通过删除或跳过测试来「修好」它们。
+- **提交前必须本地跑通**：Rust 执行 `cargo test --workspace`，且 `cargo clippy --workspace --all-targets` 无新增告警；Web 在 `web/` 下执行 `bun test`、`bun run typecheck` 与 `bun run build`。测试失败不得提交，也不得通过删除或跳过测试来「修好」它们。
 
 ## CodeRabbit 审查
 

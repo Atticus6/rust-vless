@@ -1,14 +1,13 @@
-// `tonic::Status` is ~176 bytes; boxing it here would only move the cost into
-// every trait method signature, and tonic's own generated code does the same.
+// `tonic::Status` 约 176 字节；在这里装箱只会把成本转移到每个 trait 方法
+// 的签名上，tonic 自己生成的代码也采用同样的豁免。
 #![allow(clippy::result_large_err)]
 
-//! `WebAdmin` gRPC implementation used by the browser console.
+//! 浏览器控制台使用的 `WebAdmin` gRPC 实现。
 //!
-//! The browser speaks gRPC-Web (Connect wire format) and supplies its session
-//! token as `authorization: Bearer <token>` metadata. This module only handles
-//! protocol concerns: extracting credentials, converting protobuf messages to
-//! and from the shared view types, and mapping [`ApiError`] to gRPC status
-//! codes. All behaviour lives in [`crate::service`].
+//! 浏览器通过 gRPC-Web（Connect 客户端）通信，并在 metadata 中携带
+//! `authorization: Bearer <token>`。本模块只处理协议层：提取凭证、
+//! 在 protobuf 与共享视图类型之间转换、把 [`ApiError`] 映射为 gRPC 状态码；
+//! 全部业务行为都在 [`crate::service`]。
 
 use std::sync::Arc;
 
@@ -24,27 +23,25 @@ use crate::error::ApiError;
 use crate::service;
 use crate::state::AppState;
 
-/// Tonic service adapter for the browser console.
+/// 浏览器控制台使用的 tonic 服务适配器。
 ///
-/// Holds the shared application state; each call resolves the session token and
-/// then delegates to [`crate::service`].
+/// 持有共享应用状态；每次调用先解析会话 token，再委托给 [`crate::service`]。
 #[derive(Clone)]
 pub struct WebAdminService {
     state: Arc<AppState>,
 }
 
 impl WebAdminService {
-    /// Build a service around the master state. The server keeps this clone in
-    /// every request, so the state handle is cheap (`Arc`).
+    /// 围绕主节点状态构建服务。服务器会在每个请求中克隆该服务，
+    /// 因此状态句柄必须廉价（`Arc`）。
     pub fn new(state: Arc<AppState>) -> Self {
         Self { state }
     }
 
-    /// Extract the bearer token from request metadata.
+    /// 从请求 metadata 中提取 Bearer token。
     ///
-    /// Only the standard `authorization` header is accepted; gRPC-Web clients
-    /// cannot set `:authority`-style pseudo headers, and cookies are not used
-    /// because sessions must survive cross-origin deployments.
+    /// 只接受标准 `authorization` 头；gRPC-Web 客户端无法设置
+    /// `:authority` 之类的伪头，并且不使用 cookie，因为会话需要跨域部署。
     fn bearer<T>(request: &Request<T>) -> Result<String, Status> {
         request
             .metadata()
@@ -71,10 +68,10 @@ impl WebAdminService {
     }
 }
 
-/// Map domain errors onto gRPC codes.
+/// 把业务错误映射为 gRPC 状态码。
 ///
-/// `Internal` deliberately loses its detail: the database error has already
-/// been logged server side and must not leak schema or SQL text to clients.
+/// `Internal` 故意丢弃细节：数据库错误已在服务端记录日志，不能把表结构或
+/// SQL 文本泄露给客户端。
 fn status(err: ApiError) -> Status {
     match err {
         ApiError::BadRequest(message) => Status::invalid_argument(message),
@@ -101,8 +98,8 @@ fn role_from_proto(value: i32) -> Option<Role> {
     }
 }
 
-/// Persisted links store `"rpc"` or `"http"`; unknown values are surfaced as
-/// `UNSPECIFIED` instead of being silently coerced.
+/// 持久化的连线类型是 `"rpc"` 或 `"http"`；未知值以 `UNSPECIFIED` 呈现，
+/// 而不是静默改写。
 fn transport_to_proto(value: &str) -> i32 {
     match value {
         "rpc" => pb::LinkTransport::Rpc as i32,
@@ -111,11 +108,10 @@ fn transport_to_proto(value: &str) -> i32 {
     }
 }
 
-/// Translate the wire enum into the persisted transport string.
+/// 把线上枚举转换为持久化字符串。
 ///
-/// `UNSPECIFIED` means "use the default" (rpc). Any other unmapped number is a
-/// malformed request: falling back to rpc would silently create a link the
-/// caller did not ask for, so it is rejected instead.
+/// `UNSPECIFIED` 表示「使用默认值」（rpc）；其他无法映射的数值属于非法请求，
+/// 回退成 rpc 会悄悄创建调用方并未要求的连线，因此直接拒绝。
 fn transport_from_proto(value: i32) -> Result<&'static str, Status> {
     match pb::LinkTransport::try_from(value) {
         Ok(pb::LinkTransport::Unspecified) | Ok(pb::LinkTransport::Rpc) => Ok("rpc"),
@@ -294,6 +290,87 @@ impl WebAdmin for WebAdminService {
         Ok(Response::new(stats_to_proto(stats)))
     }
 
+    async fn get_setup_status(
+        &self,
+        _request: Request<pb::Empty>,
+    ) -> Result<Response<pb::SetupStatus>, Status> {
+        let status = service::setup_status(&self.state).await.map_err(status)?;
+        Ok(Response::new(pb::SetupStatus {
+            installed: status.installed,
+            version: status.version,
+        }))
+    }
+
+    async fn setup(
+        &self,
+        request: Request<pb::SetupRequest>,
+    ) -> Result<Response<pb::LoginResponse>, Status> {
+        let req = request.into_inner();
+        let result = service::setup(
+            &self.state,
+            &req.email,
+            &req.password,
+            &req.master_name,
+            &req.setup_token,
+        )
+        .await
+        .map_err(status)?;
+        Ok(Response::new(pb::LoginResponse {
+            token: result.token,
+            admin: Some(admin_to_proto(result.admin)),
+        }))
+    }
+
+    async fn get_version_info(
+        &self,
+        request: Request<pb::Empty>,
+    ) -> Result<Response<pb::VersionInfo>, Status> {
+        self.admin(&request).await?;
+        let info = service::version_info(&self.state).await.map_err(status)?;
+        Ok(Response::new(pb::VersionInfo {
+            master_version: info.master_version,
+            latest_version: info.latest_version,
+            nodes: info
+                .nodes
+                .into_iter()
+                .map(|node| pb::NodeVersionInfo {
+                    node_id: node.node_id,
+                    name: node.name,
+                    version: node.version,
+                    online: node.online,
+                })
+                .collect(),
+        }))
+    }
+
+    async fn update_all_nodes(
+        &self,
+        request: Request<pb::UpdateNodesRequest>,
+    ) -> Result<Response<pb::UpdateNodesResponse>, Status> {
+        self.admin(&request).await?;
+        let req = request.into_inner();
+        let (requested, online) = service::update_all_nodes(&self.state, Some(&req.version))
+            .await
+            .map_err(status)?;
+        Ok(Response::new(pb::UpdateNodesResponse { requested, online }))
+    }
+
+    async fn get_subscription(
+        &self,
+        request: Request<pb::Empty>,
+    ) -> Result<Response<pb::SubscriptionInfo>, Status> {
+        let admin = self.session(&request).await?;
+        let (token, users) = service::subscription(&self.state, &admin)
+            .await
+            .map_err(status)?;
+        Ok(Response::new(pb::SubscriptionInfo {
+            v2ray_url: format!("/sub/{token}"),
+            clash_url: format!("/sub/{token}/clash"),
+            token,
+            users: users.into_iter().map(user_to_proto).collect(),
+        }))
+    }
+
     async fn list_nodes(
         &self,
         request: Request<pb::Empty>,
@@ -373,9 +450,8 @@ impl WebAdmin for WebAdminService {
     ) -> Result<Response<pb::ProxyUserView>, Status> {
         let admin = self.session(&request).await?;
         let req = request.into_inner();
-        // Only admins may target another owner. For everyone else the field is
-        // ignored before parsing so a malformed value cannot turn into an
-        // error that the JSON transport would not produce.
+        // 只有管理员能指定其他 owner。其他调用方在解析前就忽略该字段，
+        // 使非法值不会产生 JSON 传输层不会出现的错误。
         let owner_id = if admin.role == Role::Admin {
             match req.owner_id.as_deref() {
                 Some(raw) => Some(crate::auth::parse_uuid(raw).map_err(status)?),
@@ -706,8 +782,8 @@ mod tests {
         assert_eq!(links[0].transport, pb::LinkTransport::Rpc as i32);
         assert_eq!(links[0].priority, 3);
 
-        // A link back to the master would close a cycle and must be rejected
-        // with AlreadyExists rather than panicking or being silently dropped.
+        // 指回主节点的连线会成环，必须返回 AlreadyExists，
+        // 而不是 panic 或静默丢弃。
         let err = service
             .create_link(authed(
                 pb::CreateLinkRequest {
@@ -722,8 +798,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.code(), tonic::Code::AlreadyExists);
 
-        // Unknown enum values must fail validation instead of silently
-        // creating an RPC link the caller never asked for.
+        // 未知枚举值必须校验失败，不能悄悄创建一条调用方没要求的 RPC 连线。
         let err = service
             .create_link(authed(
                 pb::CreateLinkRequest {
@@ -771,7 +846,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.code(), tonic::Code::PermissionDenied);
 
-        // Regular users may still read their own (empty) user list.
+        // 普通用户仍然可以读取自己（空）的用户列表。
         let users = service
             .list_users(authed(pb::Empty {}, &user_token))
             .await
@@ -779,6 +854,19 @@ mod tests {
             .into_inner()
             .users;
         assert!(users.is_empty());
+
+        // 批量升级会向节点投递运维命令，必须同样要求 admin 角色：
+        // 页面隐藏按钮只是 UI 约束，不能替代服务端校验。
+        let err = service
+            .update_all_nodes(authed(
+                pb::UpdateNodesRequest {
+                    version: String::new(),
+                },
+                &user_token,
+            ))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::PermissionDenied);
     }
 
     #[tokio::test]
@@ -800,5 +888,160 @@ mod tests {
         assert_eq!(page.limit, service::MAX_ACCESS_LOG_LIMIT);
         assert_eq!(page.offset, 0);
         assert!(page.items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn setup_token_is_locked_after_repeated_failures() {
+        let state = crate::test_support::empty_app_state().await;
+        let service = WebAdminService::new(state);
+        for _ in 0..service::MAX_SETUP_FAILURES {
+            let err = service
+                .setup(Request::new(pb::SetupRequest {
+                    email: "root@example.com".into(),
+                    password: crate::test_support::ADMIN_PASSWORD.into(),
+                    master_name: String::new(),
+                    setup_token: "wrong".into(),
+                }))
+                .await
+                .unwrap_err();
+            assert_eq!(err.code(), tonic::Code::Unauthenticated);
+        }
+        // 达到上限后即使安装码正确也被拒绝，必须重启主节点换码。
+        let err = service
+            .setup(Request::new(pb::SetupRequest {
+                email: "root@example.com".into(),
+                password: crate::test_support::ADMIN_PASSWORD.into(),
+                master_name: String::new(),
+                setup_token: crate::test_support::SETUP_TOKEN.into(),
+            }))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn setup_flow_creates_first_admin_once() {
+        let state = crate::test_support::empty_app_state().await;
+        let service = WebAdminService::new(state);
+
+        let status = service
+            .get_setup_status(Request::new(pb::Empty {}))
+            .await
+            .unwrap()
+            .into_inner();
+        assert!(!status.installed);
+        assert_eq!(status.version, rust_vless_common::version());
+
+        // 错误安装码必须被拒绝，且不能创建管理员。
+        let err = service
+            .setup(Request::new(pb::SetupRequest {
+                email: "root@example.com".into(),
+                password: crate::test_support::ADMIN_PASSWORD.into(),
+                master_name: String::new(),
+                setup_token: "wrong-token".into(),
+            }))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::Unauthenticated);
+        let status = service
+            .get_setup_status(Request::new(pb::Empty {}))
+            .await
+            .unwrap()
+            .into_inner();
+        assert!(!status.installed);
+
+        let login = service
+            .setup(Request::new(pb::SetupRequest {
+                email: "root@example.com".into(),
+                password: crate::test_support::ADMIN_PASSWORD.into(),
+                master_name: "edge-master".into(),
+                setup_token: crate::test_support::SETUP_TOKEN.into(),
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+        assert!(!login.token.is_empty());
+        assert_eq!(login.admin.unwrap().email, "root@example.com");
+
+        let status = service
+            .get_setup_status(Request::new(pb::Empty {}))
+            .await
+            .unwrap()
+            .into_inner();
+        assert!(status.installed);
+
+        // 第二次安装必须被拒绝。
+        let err = service
+            .setup(Request::new(pb::SetupRequest {
+                email: "other@example.com".into(),
+                password: crate::test_support::ADMIN_PASSWORD.into(),
+                master_name: String::new(),
+                setup_token: crate::test_support::SETUP_TOKEN.into(),
+            }))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), tonic::Code::AlreadyExists);
+
+        // 安装返回的 token 可以立即访问管理接口，主节点名称也已更新。
+        let nodes = service
+            .list_nodes(authed(pb::Empty {}, &login.token))
+            .await
+            .unwrap()
+            .into_inner()
+            .nodes;
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].name, "edge-master");
+    }
+
+    #[tokio::test]
+    async fn version_info_and_update_all_nodes() {
+        let (_state, service) = state().await;
+        let token = login(&service).await;
+
+        let info = service
+            .get_version_info(authed(pb::Empty {}, &token))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(info.master_version, rust_vless_common::version());
+        assert_eq!(info.latest_version, rust_vless_common::version());
+        assert_eq!(info.nodes.len(), 1);
+        assert!(!info.nodes[0].online, "测试环境没有真实控制流");
+
+        let result = service
+            .update_all_nodes(authed(
+                pb::UpdateNodesRequest {
+                    version: String::new(),
+                },
+                &token,
+            ))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(result.requested, 0);
+        assert_eq!(result.online, 0);
+    }
+
+    #[tokio::test]
+    async fn subscription_token_is_stable_and_scoped() {
+        let (_state, service) = state().await;
+        let token = login(&service).await;
+
+        let first = service
+            .get_subscription(authed(pb::Empty {}, &token))
+            .await
+            .unwrap()
+            .into_inner();
+        assert!(!first.token.is_empty());
+        assert!(first.v2ray_url.ends_with(&first.token));
+        assert!(first.clash_url.ends_with(&format!("{}/clash", first.token)));
+        assert!(first.users.is_empty());
+
+        let second = service
+            .get_subscription(authed(pb::Empty {}, &token))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(second.token, first.token);
     }
 }

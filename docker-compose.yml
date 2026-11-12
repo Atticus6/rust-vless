@@ -1,0 +1,24 @@
+services:
+  master:
+    image: ghcr.io/atticus6/rust-vless:latest
+    container_name: rust-vless-master
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+      - '50051:50051'
+    environment:
+      RUST_VLESS_HTTP_ADDR: 0.0.0.0:8080
+      RUST_VLESS_GRPC_ADDR: 0.0.0.0:50051
+      RUST_VLESS_DB: /data/master.db
+      RUST_VLESS_ACCESS_LOG_FILE: /data/access_logs.jsonl
+      RUST_VLESS_WEB_DIR: /app/web
+      # 首次启动没有管理员：查看 `docker compose logs master` 中的安装码，
+      # 打开 http://localhost:8080 完成安装页面。
+      # 也可以设置 RUST_VLESS_SETUP_TOKEN 指定安装码。
+      RUST_VLESS_MASTER_PUBLIC_HTTP_URL: http://localhost:8080
+      RUST_VLESS_MASTER_PUBLIC_RPC_URL: http://localhost:50051
+    volumes:
+      - master-data:/data
+
+volumes:
+  master-data:

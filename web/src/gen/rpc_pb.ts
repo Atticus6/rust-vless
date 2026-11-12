@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file rpc.proto.
  */
 export const file_rpc: GenFile = /*@__PURE__*/
-  fileDesc("CglycGMucHJvdG8SEHJ1c3R2bGVzcy5ycGMudjEingIKC05vZGVNZXNzYWdlEigKBWhlbGxvGAEgASgLMhcucnVzdHZsZXNzLnJwYy52MS5IZWxsb0gAEjAKCWhlYXJ0YmVhdBgCIAEoCzIbLnJ1c3R2bGVzcy5ycGMudjEuSGVhcnRiZWF0SAASMgoHdHJhZmZpYxgDIAEoCzIfLnJ1c3R2bGVzcy5ycGMudjEuVHJhZmZpY1JlcG9ydEgAEjcKC2FjY2Vzc19sb2dzGAQgASgLMiAucnVzdHZsZXNzLnJwYy52MS5BY2Nlc3NMb2dCYXRjaEgAEjsKDGxpbmtfdHJhZmZpYxgFIAEoCzIjLnJ1c3R2bGVzcy5ycGMudjEuTGlua1RyYWZmaWNSZXBvcnRIAEIJCgdwYXlsb2FkIrIBCg1NYXN0ZXJNZXNzYWdlEi4KCGFjY2VwdGVkGAEgASgLMhoucnVzdHZsZXNzLnJwYy52MS5BY2NlcHRlZEgAEjAKBmNvbmZpZxgCIAEoCzIeLnJ1c3R2bGVzcy5ycGMudjEuQ29uZmlnVXBkYXRlSAASNAoIdG9wb2xvZ3kYAyABKAsyIC5ydXN0dmxlc3MucnBjLnYxLlRvcG9sb2d5VXBkYXRlSABCCQoHcGF5bG9hZCJbCgVIZWxsbxIPCgdub2RlX2lkGAEgASgJEg0KBXRva2VuGAIgASgJEg8KB3ZlcnNpb24YAyABKAkSEAoIaHR0cF91cmwYBCABKAkSDwoHcnBjX3VybBgFIAEoCSJVCghBY2NlcHRlZBIWCg5zZXJ2ZXJfdGltZV9tcxgBIAEoAxIRCglub2RlX25hbWUYAiABKAkSHgoWaGVhcnRiZWF0X2ludGVydmFsX3NlYxgDIAEoAyJ8CglIZWFydGJlYXQSFAoMdGltZXN0YW1wX21zGAEgASgDEhoKEmFjdGl2ZV9jb25uZWN0aW9ucxgCIAEoBBISCgp1cHRpbWVfc2VjGAMgASgEEhMKC2NwdV9wZXJjZW50GAQgASgFEhQKDG1lbW9yeV9ieXRlcxgFIAEoBCI9Cg1UcmFmZmljUmVwb3J0EiwKBXVzZXJzGAEgAygLMh0ucnVzdHZsZXNzLnJwYy52MS5Vc2VyVHJhZmZpYyJECgtVc2VyVHJhZmZpYxIPCgd1c2VyX2lkGAEgASgJEhAKCHVwX2J5dGVzGAIgASgEEhIKCmRvd25fYnl0ZXMYAyABKAQiOwoOQWNjZXNzTG9nQmF0Y2gSKQoEbG9ncxgBIAMoCzIbLnJ1c3R2bGVzcy5ycGMudjEuQWNjZXNzTG9nIvwBCglBY2Nlc3NMb2cSEgoKc2Vzc2lvbl9pZBgBIAEoCRIPCgd1c2VyX2lkGAIgASgJEhUKDWVudHJ5X25vZGVfaWQYAyABKAkSDgoGdGFyZ2V0GAQgASgJEg8KB2NvbW1hbmQYBSABKAkSFQoNc3RhcnRlZF9hdF9tcxgGIAEoAxITCgtlbmRlZF9hdF9tcxgHIAEoAxIQCgh1cF9ieXRlcxgIIAEoBBISCgpkb3duX2J5dGVzGAkgASgEEg4KBnN0YXR1cxgKIAEoCRINCgVlcnJvchgLIAEoCRIMCgRwYXRoGAwgAygJEhMKC2NsaWVudF9hZGRyGA0gASgJIkEKEUxpbmtUcmFmZmljUmVwb3J0EiwKBWxpbmtzGAEgAygLMh0ucnVzdHZsZXNzLnJwYy52MS5MaW5rVHJhZmZpYyJWCgtMaW5rVHJhZmZpYxIPCgdsaW5rX2lkGAEgASgJEhAKCHVwX2J5dGVzGAIgASgEEhIKCmRvd25fYnl0ZXMYAyABKAQSEAoIc2Vzc2lvbnMYBCABKAQiTAoMQ29uZmlnVXBkYXRlEioKBXVzZXJzGAEgAygLMhsucnVzdHZsZXNzLnJwYy52MS5WbGVzc1VzZXISEAoIcmV2aXNpb24YAiABKAMiNgoJVmxlc3NVc2VyEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDwoHZW5hYmxlZBgDIAEoCCKEAQoOVG9wb2xvZ3lVcGRhdGUSMAoIb3V0Ym91bmQYASADKAsyHi5ydXN0dmxlc3MucnBjLnYxLk91dGJvdW5kTGluaxIuCgdpbmJvdW5kGAIgAygLMh0ucnVzdHZsZXNzLnJwYy52MS5JbmJvdW5kTGluaxIQCghyZXZpc2lvbhgDIAEoAyKKAQoMT3V0Ym91bmRMaW5rEg8KB2xpbmtfaWQYASABKAkSEgoKdG9fbm9kZV9pZBgCIAEoCRIPCgd0b19uYW1lGAMgASgJEhEKCXRyYW5zcG9ydBgEIAEoCRIQCghlbmRwb2ludBgFIAEoCRINCgV0b2tlbhgGIAEoCRIQCghwcmlvcml0eRgHIAEoAyJWCgtJbmJvdW5kTGluaxIPCgdsaW5rX2lkGAEgASgJEhQKDGZyb21fbm9kZV9pZBgCIAEoCRINCgV0b2tlbhgDIAEoCRIRCgl0cmFuc3BvcnQYBCABKAkihgEKC1JlbGF5UGFja2V0Ei0KBWhlbGxvGAEgASgLMhwucnVzdHZsZXNzLnJwYy52MS5SZWxheUhlbGxvSAASLQoFcmVhZHkYAiABKAsyHC5ydXN0dmxlc3MucnBjLnYxLlJlbGF5UmVhZHlIABIOCgRkYXRhGAMgASgMSABCCQoHcGF5bG9hZCJ1CgpSZWxheUhlbGxvEhIKCmxpbmtfdG9rZW4YASABKAkSFAoMZnJvbV9ub2RlX2lkGAIgASgJEhQKDHZsZXNzX2hlYWRlchgDIAEoDBIPCgd2aXNpdGVkGAQgAygJEhYKDnJlcG9ydF90cmFmZmljGAUgASgIIhoKClJlbGF5UmVhZHkSDAoEcGF0aBgBIAMoCSIHCgVFbXB0eSIvCgxMb2dpblJlcXVlc3QSDQoFZW1haWwYASABKAkSEAoIcGFzc3dvcmQYAiABKAkiSgoNTG9naW5SZXNwb25zZRINCgV0b2tlbhgBIAEoCRIqCgVhZG1pbhgCIAEoCzIbLnJ1c3R2bGVzcy5ycGMudjEuQWRtaW5WaWV3ImMKCUFkbWluVmlldxIKCgJpZBgBIAEoCRINCgVlbWFpbBgCIAEoCRInCgRyb2xlGAMgASgOMhkucnVzdHZsZXNzLnJwYy52MS5XZWJSb2xlEhIKCmNyZWF0ZWRfYXQYBCABKAMiOAoJQWRtaW5MaXN0EisKBmFkbWlucxgBIAMoCzIbLnJ1c3R2bGVzcy5ycGMudjEuQWRtaW5WaWV3Is8BCglTdGF0c1ZpZXcSEwoLbm9kZXNfdG90YWwYASABKAMSFAoMbm9kZXNfb25saW5lGAIgASgDEhMKC3VzZXJzX3RvdGFsGAMgASgDEhUKDXVzZXJzX2VuYWJsZWQYBCABKAMSFAoMYWRtaW5zX3RvdGFsGAUgASgDEhAKCHVwX2J5dGVzGAYgASgEEhIKCmRvd25fYnl0ZXMYByABKAQSGgoSYWN0aXZlX2Nvbm5lY3Rpb25zGAggASgEEhMKC2xpbmtzX3RvdGFsGAkgASgDItIBCghOb2RlVmlldxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg4KBnN0YXR1cxgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhAKCGh0dHBfdXJsGAUgASgJEg8KB3JwY191cmwYBiABKAkSEQoJaXNfbWFzdGVyGAcgASgIEhEKCWxhc3Rfc2VlbhgIIAEoAxISCgpjcmVhdGVkX2F0GAkgASgDEhoKEmFjdGl2ZV9jb25uZWN0aW9ucxgKIAEoBBISCgp1cHRpbWVfc2VjGAsgASgEIjUKCE5vZGVMaXN0EikKBW5vZGVzGAEgAygLMhoucnVzdHZsZXNzLnJwYy52MS5Ob2RlVmlldyIhChFDcmVhdGVOb2RlUmVxdWVzdBIMCgRuYW1lGAEgASgJIk0KEkNyZWF0ZU5vZGVSZXNwb25zZRIoCgRub2RlGAEgASgLMhoucnVzdHZsZXNzLnJwYy52MS5Ob2RlVmlldxINCgV0b2tlbhgCIAEoCSKBAQoRVXBkYXRlTm9kZVJlcXVlc3QSCgoCaWQYASABKAkSEQoEbmFtZRgCIAEoCUgAiAEBEhUKCGh0dHBfdXJsGAMgASgJSAGIAQESFAoHcnBjX3VybBgEIAEoCUgCiAEBQgcKBV9uYW1lQgsKCV9odHRwX3VybEIKCghfcnBjX3VybCIfChFEZWxldGVOb2RlUmVxdWVzdBIKCgJpZBgBIAEoCSKbAQoNUHJveHlVc2VyVmlldxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2VuYWJsZWQYAyABKAgSEAoIb3duZXJfaWQYBCABKAkSEwoLb3duZXJfZW1haWwYBSABKAkSEgoKY3JlYXRlZF9hdBgGIAEoAxIQCgh1cF9ieXRlcxgHIAEoBBISCgpkb3duX2J5dGVzGAggASgEIjoKCFVzZXJMaXN0Ei4KBXVzZXJzGAEgAygLMh8ucnVzdHZsZXNzLnJwYy52MS5Qcm94eVVzZXJWaWV3IkUKEUNyZWF0ZVVzZXJSZXF1ZXN0EgwKBG5hbWUYASABKAkSFQoIb3duZXJfaWQYAiABKAlIAIgBAUILCglfb3duZXJfaWQiXQoRVXBkYXRlVXNlclJlcXVlc3QSCgoCaWQYASABKAkSEQoEbmFtZRgCIAEoCUgAiAEBEhQKB2VuYWJsZWQYAyABKAhIAYgBAUIHCgVfbmFtZUIKCghfZW5hYmxlZCIfChFEZWxldGVVc2VyUmVxdWVzdBIKCgJpZBgBIAEoCSJsChJDcmVhdGVBZG1pblJlcXVlc3QSDQoFZW1haWwYASABKAkSEAoIcGFzc3dvcmQYAiABKAkSLAoEcm9sZRgDIAEoDjIZLnJ1c3R2bGVzcy5ycGMudjEuV2ViUm9sZUgAiAEBQgcKBV9yb2xlIiAKEkRlbGV0ZUFkbWluUmVxdWVzdBIKCgJpZBgBIAEoCSLPAQoITGlua1ZpZXcSCgoCaWQYASABKAkSFAoMZnJvbV9ub2RlX2lkGAIgASgJEhIKCnRvX25vZGVfaWQYAyABKAkSEQoJZnJvbV9uYW1lGAQgASgJEg8KB3RvX25hbWUYBSABKAkSMgoJdHJhbnNwb3J0GAYgASgOMh8ucnVzdHZsZXNzLnJwYy52MS5MaW5rVHJhbnNwb3J0EhAKCHByaW9yaXR5GAcgASgDEg8KB2VuYWJsZWQYCCABKAgSEgoKY3JlYXRlZF9hdBgJIAEoAyI1CghMaW5rTGlzdBIpCgVsaW5rcxgBIAMoCzIaLnJ1c3R2bGVzcy5ycGMudjEuTGlua1ZpZXcigwEKEUNyZWF0ZUxpbmtSZXF1ZXN0EhQKDGZyb21fbm9kZV9pZBgBIAEoCRISCgp0b19ub2RlX2lkGAIgASgJEjIKCXRyYW5zcG9ydBgDIAEoDjIfLnJ1c3R2bGVzcy5ycGMudjEuTGlua1RyYW5zcG9ydBIQCghwcmlvcml0eRgEIAEoAyIfChFEZWxldGVMaW5rUmVxdWVzdBIKCgJpZBgBIAEoCSJoChBUb3BvbG9neVJlc3BvbnNlEikKBW5vZGVzGAEgAygLMhoucnVzdHZsZXNzLnJwYy52MS5Ob2RlVmlldxIpCgVsaW5rcxgCIAMoCzIaLnJ1c3R2bGVzcy5ycGMudjEuTGlua1ZpZXciiQIKEUFjY2Vzc0xvZ3NSZXF1ZXN0EhQKB3VzZXJfaWQYASABKAlIAIgBARIUCgdub2RlX2lkGAIgASgJSAGIAQESEwoGc3RhdHVzGAMgASgJSAKIAQESEwoGdGFyZ2V0GAQgASgJSAOIAQESEQoEZnJvbRgFIAEoA0gEiAEBEg8KAnRvGAYgASgDSAWIAQESEgoFbGltaXQYByABKANIBogBARITCgZvZmZzZXQYCCABKANIB4gBAUIKCghfdXNlcl9pZEIKCghfbm9kZV9pZEIJCgdfc3RhdHVzQgkKB190YXJnZXRCBwoFX2Zyb21CBQoDX3RvQggKBl9saW1pdEIJCgdfb2Zmc2V0IpsCCg1BY2Nlc3NMb2dWaWV3EgoKAmlkGAEgASgDEhIKCnNlc3Npb25faWQYAiABKAkSDwoHdXNlcl9pZBgDIAEoCRIVCg1lbnRyeV9ub2RlX2lkGAQgASgJEg4KBnRhcmdldBgFIAEoCRIPCgdjb21tYW5kGAYgASgJEhIKCnN0YXJ0ZWRfYXQYByABKAMSEAoIZW5kZWRfYXQYCCABKAMSEwoLZHVyYXRpb25fbXMYCSABKAMSEAoIdXBfYnl0ZXMYCiABKAQSEgoKZG93bl9ieXRlcxgLIAEoBBIOCgZzdGF0dXMYDCABKAkSDQoFZXJyb3IYDSABKAkSDAoEcGF0aBgOIAMoCRITCgtjbGllbnRfYWRkchgPIAEoCSJtCg1BY2Nlc3NMb2dQYWdlEi4KBWl0ZW1zGAEgAygLMh8ucnVzdHZsZXNzLnJwYy52MS5BY2Nlc3NMb2dWaWV3Eg0KBXRvdGFsGAIgASgDEg0KBWxpbWl0GAMgASgDEg4KBm9mZnNldBgEIAEoAyI4ChZUcmFmZmljVG9wb2xvZ3lSZXF1ZXN0EhMKBndpbmRvdxgBIAEoA0gAiAEBQgkKB193aW5kb3ciawoQVG9wb2xvZ3lOb2RlVmlldxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhEKCWlzX21hc3RlchgDIAEoCBIOCgZvbmxpbmUYBCABKAgSGgoSYWN0aXZlX2Nvbm5lY3Rpb25zGAUgASgEIrQBChBUb3BvbG9neUxpbmtWaWV3EgoKAmlkGAEgASgJEhQKDGZyb21fbm9kZV9pZBgCIAEoCRISCgp0b19ub2RlX2lkGAMgASgJEjIKCXRyYW5zcG9ydBgEIAEoDjIfLnJ1c3R2bGVzcy5ycGMudjEuTGlua1RyYW5zcG9ydBIQCgh1cF9ieXRlcxgFIAEoBBISCgpkb3duX2J5dGVzGAYgASgEEhAKCHNlc3Npb25zGAcgASgEIo8BChNUcmFmZmljVG9wb2xvZ3lWaWV3EhIKCndpbmRvd19zZWMYASABKAMSMQoFbm9kZXMYAiADKAsyIi5ydXN0dmxlc3MucnBjLnYxLlRvcG9sb2d5Tm9kZVZpZXcSMQoFbGlua3MYAyADKAsyIi5ydXN0dmxlc3MucnBjLnYxLlRvcG9sb2d5TGlua1ZpZXciZgoKVHJhZmZpY1JvdxIPCgd1c2VyX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLb3duZXJfZW1haWwYAyABKAkSEAoIdXBfYnl0ZXMYBCABKAQSEgoKZG93bl9ieXRlcxgFIAEoBCI9Cg9UcmFmZmljT3ZlcnZpZXcSKgoEcm93cxgBIAMoCzIcLnJ1c3R2bGVzcy5ycGMudjEuVHJhZmZpY1JvdypKCgdXZWJSb2xlEhgKFFdFQl9ST0xFX1VOU1BFQ0lGSUVEEAASEgoOV0VCX1JPTEVfQURNSU4QARIRCg1XRUJfUk9MRV9VU0VSEAIqYAoNTGlua1RyYW5zcG9ydBIeChpMSU5LX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEhYKEkxJTktfVFJBTlNQT1JUX1JQQxABEhcKE0xJTktfVFJBTlNQT1JUX0hUVFAQAjJbCgtOb2RlQ29udHJvbBJMCgZTdHJlYW0SHS5ydXN0dmxlc3MucnBjLnYxLk5vZGVNZXNzYWdlGh8ucnVzdHZsZXNzLnJwYy52MS5NYXN0ZXJNZXNzYWdlKAEwATJUCgVSZWxheRJLCgdGb3J3YXJkEh0ucnVzdHZsZXNzLnJwYy52MS5SZWxheVBhY2tldBodLnJ1c3R2bGVzcy5ycGMudjEuUmVsYXlQYWNrZXQoATABMpgNCghXZWJBZG1pbhJICgVMb2dpbhIeLnJ1c3R2bGVzcy5ycGMudjEuTG9naW5SZXF1ZXN0Gh8ucnVzdHZsZXNzLnJwYy52MS5Mb2dpblJlc3BvbnNlEjoKBkxvZ291dBIXLnJ1c3R2bGVzcy5ycGMudjEuRW1wdHkaFy5ydXN0dmxlc3MucnBjLnYxLkVtcHR5EjoKAk1lEhcucnVzdHZsZXNzLnJwYy52MS5FbXB0eRobLnJ1c3R2bGVzcy5ycGMudjEuQWRtaW5WaWV3EkAKCEdldFN0YXRzEhcucnVzdHZsZXNzLnJwYy52MS5FbXB0eRobLnJ1c3R2bGVzcy5ycGMudjEuU3RhdHNWaWV3EkAKCUxpc3ROb2RlcxIXLnJ1c3R2bGVzcy5ycGMudjEuRW1wdHkaGi5ydXN0dmxlc3MucnBjLnYxLk5vZGVMaXN0ElcKCkNyZWF0ZU5vZGUSIy5ydXN0dmxlc3MucnBjLnYxLkNyZWF0ZU5vZGVSZXF1ZXN0GiQucnVzdHZsZXNzLnJwYy52MS5DcmVhdGVOb2RlUmVzcG9uc2USTQoKVXBkYXRlTm9kZRIjLnJ1c3R2bGVzcy5ycGMudjEuVXBkYXRlTm9kZVJlcXVlc3QaGi5ydXN0dmxlc3MucnBjLnYxLk5vZGVWaWV3EkoKCkRlbGV0ZU5vZGUSIy5ydXN0dmxlc3MucnBjLnYxLkRlbGV0ZU5vZGVSZXF1ZXN0GhcucnVzdHZsZXNzLnJwYy52MS5FbXB0eRJACglMaXN0VXNlcnMSFy5ydXN0dmxlc3MucnBjLnYxLkVtcHR5GhoucnVzdHZsZXNzLnJwYy52MS5Vc2VyTGlzdBJSCgpDcmVhdGVVc2VyEiMucnVzdHZsZXNzLnJwYy52MS5DcmVhdGVVc2VyUmVxdWVzdBofLnJ1c3R2bGVzcy5ycGMudjEuUHJveHlVc2VyVmlldxJSCgpVcGRhdGVVc2VyEiMucnVzdHZsZXNzLnJwYy52MS5VcGRhdGVVc2VyUmVxdWVzdBofLnJ1c3R2bGVzcy5ycGMudjEuUHJveHlVc2VyVmlldxJKCgpEZWxldGVVc2VyEiMucnVzdHZsZXNzLnJwYy52MS5EZWxldGVVc2VyUmVxdWVzdBoXLnJ1c3R2bGVzcy5ycGMudjEuRW1wdHkSQgoKTGlzdEFkbWlucxIXLnJ1c3R2bGVzcy5ycGMudjEuRW1wdHkaGy5ydXN0dmxlc3MucnBjLnYxLkFkbWluTGlzdBJQCgtDcmVhdGVBZG1pbhIkLnJ1c3R2bGVzcy5ycGMudjEuQ3JlYXRlQWRtaW5SZXF1ZXN0GhsucnVzdHZsZXNzLnJwYy52MS5BZG1pblZpZXcSTAoLRGVsZXRlQWRtaW4SJC5ydXN0dmxlc3MucnBjLnYxLkRlbGV0ZUFkbWluUmVxdWVzdBoXLnJ1c3R2bGVzcy5ycGMudjEuRW1wdHkSQAoJTGlzdExpbmtzEhcucnVzdHZsZXNzLnJwYy52MS5FbXB0eRoaLnJ1c3R2bGVzcy5ycGMudjEuTGlua0xpc3QSTQoKQ3JlYXRlTGluaxIjLnJ1c3R2bGVzcy5ycGMudjEuQ3JlYXRlTGlua1JlcXVlc3QaGi5ydXN0dmxlc3MucnBjLnYxLkxpbmtWaWV3EkoKCkRlbGV0ZUxpbmsSIy5ydXN0dmxlc3MucnBjLnYxLkRlbGV0ZUxpbmtSZXF1ZXN0GhcucnVzdHZsZXNzLnJwYy52MS5FbXB0eRJKCgtHZXRUb3BvbG9neRIXLnJ1c3R2bGVzcy5ycGMudjEuRW1wdHkaIi5ydXN0dmxlc3MucnBjLnYxLlRvcG9sb2d5UmVzcG9uc2USVgoOTGlzdEFjY2Vzc0xvZ3MSIy5ydXN0dmxlc3MucnBjLnYxLkFjY2Vzc0xvZ3NSZXF1ZXN0Gh8ucnVzdHZsZXNzLnJwYy52MS5BY2Nlc3NMb2dQYWdlEmUKEkdldFRyYWZmaWNUb3BvbG9neRIoLnJ1c3R2bGVzcy5ycGMudjEuVHJhZmZpY1RvcG9sb2d5UmVxdWVzdBolLnJ1c3R2bGVzcy5ycGMudjEuVHJhZmZpY1RvcG9sb2d5VmlldxJQChJHZXRUcmFmZmljT3ZlcnZpZXcSFy5ydXN0dmxlc3MucnBjLnYxLkVtcHR5GiEucnVzdHZsZXNzLnJwYy52MS5UcmFmZmljT3ZlcnZpZXdiBnByb3RvMw");
+  fileDesc("CglycGMucHJvdG8SEHJ1c3R2bGVzcy5ycGMudjEi2QIKC05vZGVNZXNzYWdlEigKBWhlbGxvGAEgASgLMhcucnVzdHZsZXNzLnJwYy52MS5IZWxsb0gAEjAKCWhlYXJ0YmVhdBgCIAEoCzIbLnJ1c3R2bGVzcy5ycGMudjEuSGVhcnRiZWF0SAASMgoHdHJhZmZpYxgDIAEoCzIfLnJ1c3R2bGVzcy5ycGMudjEuVHJhZmZpY1JlcG9ydEgAEjcKC2FjY2Vzc19sb2dzGAQgASgLMiAucnVzdHZsZXNzLnJwYy52MS5BY2Nlc3NMb2dCYXRjaEgAEjsKDGxpbmtfdHJhZmZpYxgFIAEoCzIjLnJ1c3R2bGVzcy5ycGMudjEuTGlua1RyYWZmaWNSZXBvcnRIABI5Cg51cGdyYWRlX3Jlc3VsdBgGIAEoCzIfLnJ1c3R2bGVzcy5ycGMudjEuVXBncmFkZVJlc3VsdEgAQgkKB3BheWxvYWQi4AEKDU1hc3Rlck1lc3NhZ2USLgoIYWNjZXB0ZWQYASABKAsyGi5ydXN0dmxlc3MucnBjLnYxLkFjY2VwdGVkSAASMAoGY29uZmlnGAIgASgLMh4ucnVzdHZsZXNzLnJwYy52MS5Db25maWdVcGRhdGVIABI0Cgh0b3BvbG9neRgDIAEoCzIgLnJ1c3R2bGVzcy5ycGMudjEuVG9wb2xvZ3lVcGRhdGVIABIsCgd1cGdyYWRlGAQgASgLMhkucnVzdHZsZXNzLnJwYy52MS5VcGdyYWRlSABCCQoHcGF5bG9hZCJbCgVIZWxsbxIPCgdub2RlX2lkGAEgASgJEg0KBXRva2VuGAIgASgJEg8KB3ZlcnNpb24YAyABKAkSEAoIaHR0cF91cmwYBCABKAkSDwoHcnBjX3VybBgFIAEoCSJVCghBY2NlcHRlZBIWCg5zZXJ2ZXJfdGltZV9tcxgBIAEoAxIRCglub2RlX25hbWUYAiABKAkSHgoWaGVhcnRiZWF0X2ludGVydmFsX3NlYxgDIAEoAyJ8CglIZWFydGJlYXQSFAoMdGltZXN0YW1wX21zGAEgASgDEhoKEmFjdGl2ZV9jb25uZWN0aW9ucxgCIAEoBBISCgp1cHRpbWVfc2VjGAMgASgEEhMKC2NwdV9wZXJjZW50GAQgASgFEhQKDG1lbW9yeV9ieXRlcxgFIAEoBCI9Cg1UcmFmZmljUmVwb3J0EiwKBXVzZXJzGAEgAygLMh0ucnVzdHZsZXNzLnJwYy52MS5Vc2VyVHJhZmZpYyJECgtVc2VyVHJhZmZpYxIPCgd1c2VyX2lkGAEgASgJEhAKCHVwX2J5dGVzGAIgASgEEhIKCmRvd25fYnl0ZXMYAyABKAQiOwoOQWNjZXNzTG9nQmF0Y2gSKQoEbG9ncxgBIAMoCzIbLnJ1c3R2bGVzcy5ycGMudjEuQWNjZXNzTG9nIvwBCglBY2Nlc3NMb2cSEgoKc2Vzc2lvbl9pZBgBIAEoCRIPCgd1c2VyX2lkGAIgASgJEhUKDWVudHJ5X25vZGVfaWQYAyABKAkSDgoGdGFyZ2V0GAQgASgJEg8KB2NvbW1hbmQYBSABKAkSFQoNc3RhcnRlZF9hdF9tcxgGIAEoAxITCgtlbmRlZF9hdF9tcxgHIAEoAxIQCgh1cF9ieXRlcxgIIAEoBBISCgpkb3duX2J5dGVzGAkgASgEEg4KBnN0YXR1cxgKIAEoCRINCgVlcnJvchgLIAEoCRIMCgRwYXRoGAwgAygJEhMKC2NsaWVudF9hZGRyGA0gASgJIkEKEUxpbmtUcmFmZmljUmVwb3J0EiwKBWxpbmtzGAEgAygLMh0ucnVzdHZsZXNzLnJwYy52MS5MaW5rVHJhZmZpYyJWCgtMaW5rVHJhZmZpYxIPCgdsaW5rX2lkGAEgASgJEhAKCHVwX2J5dGVzGAIgASgEEhIKCmRvd25fYnl0ZXMYAyABKAQSEAoIc2Vzc2lvbnMYBCABKAQiTAoMQ29uZmlnVXBkYXRlEioKBXVzZXJzGAEgAygLMhsucnVzdHZsZXNzLnJwYy52MS5WbGVzc1VzZXISEAoIcmV2aXNpb24YAiABKAMiNgoJVmxlc3NVc2VyEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDwoHZW5hYmxlZBgDIAEoCCKEAQoOVG9wb2xvZ3lVcGRhdGUSMAoIb3V0Ym91bmQYASADKAsyHi5ydXN0dmxlc3MucnBjLnYxLk91dGJvdW5kTGluaxIuCgdpbmJvdW5kGAIgAygLMh0ucnVzdHZsZXNzLnJwYy52MS5JbmJvdW5kTGluaxIQCghyZXZpc2lvbhgDIAEoAyKKAQoMT3V0Ym91bmRMaW5rEg8KB2xpbmtfaWQYASABKAkSEgoKdG9fbm9kZV9pZBgCIAEoCRIPCgd0b19uYW1lGAMgASgJEhEKCXRyYW5zcG9ydBgEIAEoCRIQCghlbmRwb2ludBgFIAEoCRINCgV0b2tlbhgGIAEoCRIQCghwcmlvcml0eRgHIAEoAyJWCgtJbmJvdW5kTGluaxIPCgdsaW5rX2lkGAEgASgJEhQKDGZyb21fbm9kZV9pZBgCIAEoCRINCgV0b2tlbhgDIAEoCRIRCgl0cmFuc3BvcnQYBCABKAkihgEKC1JlbGF5UGFja2V0Ei0KBWhlbGxvGAEgASgLMhwucnVzdHZsZXNzLnJwYy52MS5SZWxheUhlbGxvSAASLQoFcmVhZHkYAiABKAsyHC5ydXN0dmxlc3MucnBjLnYxLlJlbGF5UmVhZHlIABIOCgRkYXRhGAMgASgMSABCCQoHcGF5bG9hZCJ1CgpSZWxheUhlbGxvEhIKCmxpbmtfdG9rZW4YASABKAkSFAoMZnJvbV9ub2RlX2lkGAIgASgJEhQKDHZsZXNzX2hlYWRlchgDIAEoDBIPCgd2aXNpdGVkGAQgAygJEhYKDnJlcG9ydF90cmFmZmljGAUgASgIIhoKClJlbGF5UmVhZHkSDAoEcGF0aBgBIAMoCSIHCgVFbXB0eSIvCgxMb2dpblJlcXVlc3QSDQoFZW1haWwYASABKAkSEAoIcGFzc3dvcmQYAiABKAkiSgoNTG9naW5SZXNwb25zZRINCgV0b2tlbhgBIAEoCRIqCgVhZG1pbhgCIAEoCzIbLnJ1c3R2bGVzcy5ycGMudjEuQWRtaW5WaWV3ImMKCUFkbWluVmlldxIKCgJpZBgBIAEoCRINCgVlbWFpbBgCIAEoCRInCgRyb2xlGAMgASgOMhkucnVzdHZsZXNzLnJwYy52MS5XZWJSb2xlEhIKCmNyZWF0ZWRfYXQYBCABKAMiOAoJQWRtaW5MaXN0EisKBmFkbWlucxgBIAMoCzIbLnJ1c3R2bGVzcy5ycGMudjEuQWRtaW5WaWV3Is8BCglTdGF0c1ZpZXcSEwoLbm9kZXNfdG90YWwYASABKAMSFAoMbm9kZXNfb25saW5lGAIgASgDEhMKC3VzZXJzX3RvdGFsGAMgASgDEhUKDXVzZXJzX2VuYWJsZWQYBCABKAMSFAoMYWRtaW5zX3RvdGFsGAUgASgDEhAKCHVwX2J5dGVzGAYgASgEEhIKCmRvd25fYnl0ZXMYByABKAQSGgoSYWN0aXZlX2Nvbm5lY3Rpb25zGAggASgEEhMKC2xpbmtzX3RvdGFsGAkgASgDItIBCghOb2RlVmlldxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg4KBnN0YXR1cxgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhAKCGh0dHBfdXJsGAUgASgJEg8KB3JwY191cmwYBiABKAkSEQoJaXNfbWFzdGVyGAcgASgIEhEKCWxhc3Rfc2VlbhgIIAEoAxISCgpjcmVhdGVkX2F0GAkgASgDEhoKEmFjdGl2ZV9jb25uZWN0aW9ucxgKIAEoBBISCgp1cHRpbWVfc2VjGAsgASgEIjUKCE5vZGVMaXN0EikKBW5vZGVzGAEgAygLMhoucnVzdHZsZXNzLnJwYy52MS5Ob2RlVmlldyIhChFDcmVhdGVOb2RlUmVxdWVzdBIMCgRuYW1lGAEgASgJIk0KEkNyZWF0ZU5vZGVSZXNwb25zZRIoCgRub2RlGAEgASgLMhoucnVzdHZsZXNzLnJwYy52MS5Ob2RlVmlldxINCgV0b2tlbhgCIAEoCSKBAQoRVXBkYXRlTm9kZVJlcXVlc3QSCgoCaWQYASABKAkSEQoEbmFtZRgCIAEoCUgAiAEBEhUKCGh0dHBfdXJsGAMgASgJSAGIAQESFAoHcnBjX3VybBgEIAEoCUgCiAEBQgcKBV9uYW1lQgsKCV9odHRwX3VybEIKCghfcnBjX3VybCIfChFEZWxldGVOb2RlUmVxdWVzdBIKCgJpZBgBIAEoCSKbAQoNUHJveHlVc2VyVmlldxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2VuYWJsZWQYAyABKAgSEAoIb3duZXJfaWQYBCABKAkSEwoLb3duZXJfZW1haWwYBSABKAkSEgoKY3JlYXRlZF9hdBgGIAEoAxIQCgh1cF9ieXRlcxgHIAEoBBISCgpkb3duX2J5dGVzGAggASgEIjoKCFVzZXJMaXN0Ei4KBXVzZXJzGAEgAygLMh8ucnVzdHZsZXNzLnJwYy52MS5Qcm94eVVzZXJWaWV3IkUKEUNyZWF0ZVVzZXJSZXF1ZXN0EgwKBG5hbWUYASABKAkSFQoIb3duZXJfaWQYAiABKAlIAIgBAUILCglfb3duZXJfaWQiXQoRVXBkYXRlVXNlclJlcXVlc3QSCgoCaWQYASABKAkSEQoEbmFtZRgCIAEoCUgAiAEBEhQKB2VuYWJsZWQYAyABKAhIAYgBAUIHCgVfbmFtZUIKCghfZW5hYmxlZCIfChFEZWxldGVVc2VyUmVxdWVzdBIKCgJpZBgBIAEoCSJsChJDcmVhdGVBZG1pblJlcXVlc3QSDQoFZW1haWwYASABKAkSEAoIcGFzc3dvcmQYAiABKAkSLAoEcm9sZRgDIAEoDjIZLnJ1c3R2bGVzcy5ycGMudjEuV2ViUm9sZUgAiAEBQgcKBV9yb2xlIiAKEkRlbGV0ZUFkbWluUmVxdWVzdBIKCgJpZBgBIAEoCSLPAQoITGlua1ZpZXcSCgoCaWQYASABKAkSFAoMZnJvbV9ub2RlX2lkGAIgASgJEhIKCnRvX25vZGVfaWQYAyABKAkSEQoJZnJvbV9uYW1lGAQgASgJEg8KB3RvX25hbWUYBSABKAkSMgoJdHJhbnNwb3J0GAYgASgOMh8ucnVzdHZsZXNzLnJwYy52MS5MaW5rVHJhbnNwb3J0EhAKCHByaW9yaXR5GAcgASgDEg8KB2VuYWJsZWQYCCABKAgSEgoKY3JlYXRlZF9hdBgJIAEoAyI1CghMaW5rTGlzdBIpCgVsaW5rcxgBIAMoCzIaLnJ1c3R2bGVzcy5ycGMudjEuTGlua1ZpZXcigwEKEUNyZWF0ZUxpbmtSZXF1ZXN0EhQKDGZyb21fbm9kZV9pZBgBIAEoCRISCgp0b19ub2RlX2lkGAIgASgJEjIKCXRyYW5zcG9ydBgDIAEoDjIfLnJ1c3R2bGVzcy5ycGMudjEuTGlua1RyYW5zcG9ydBIQCghwcmlvcml0eRgEIAEoAyIfChFEZWxldGVMaW5rUmVxdWVzdBIKCgJpZBgBIAEoCSJoChBUb3BvbG9neVJlc3BvbnNlEikKBW5vZGVzGAEgAygLMhoucnVzdHZsZXNzLnJwYy52MS5Ob2RlVmlldxIpCgVsaW5rcxgCIAMoCzIaLnJ1c3R2bGVzcy5ycGMudjEuTGlua1ZpZXciiQIKEUFjY2Vzc0xvZ3NSZXF1ZXN0EhQKB3VzZXJfaWQYASABKAlIAIgBARIUCgdub2RlX2lkGAIgASgJSAGIAQESEwoGc3RhdHVzGAMgASgJSAKIAQESEwoGdGFyZ2V0GAQgASgJSAOIAQESEQoEZnJvbRgFIAEoA0gEiAEBEg8KAnRvGAYgASgDSAWIAQESEgoFbGltaXQYByABKANIBogBARITCgZvZmZzZXQYCCABKANIB4gBAUIKCghfdXNlcl9pZEIKCghfbm9kZV9pZEIJCgdfc3RhdHVzQgkKB190YXJnZXRCBwoFX2Zyb21CBQoDX3RvQggKBl9saW1pdEIJCgdfb2Zmc2V0IpsCCg1BY2Nlc3NMb2dWaWV3EgoKAmlkGAEgASgDEhIKCnNlc3Npb25faWQYAiABKAkSDwoHdXNlcl9pZBgDIAEoCRIVCg1lbnRyeV9ub2RlX2lkGAQgASgJEg4KBnRhcmdldBgFIAEoCRIPCgdjb21tYW5kGAYgASgJEhIKCnN0YXJ0ZWRfYXQYByABKAMSEAoIZW5kZWRfYXQYCCABKAMSEwoLZHVyYXRpb25fbXMYCSABKAMSEAoIdXBfYnl0ZXMYCiABKAQSEgoKZG93bl9ieXRlcxgLIAEoBBIOCgZzdGF0dXMYDCABKAkSDQoFZXJyb3IYDSABKAkSDAoEcGF0aBgOIAMoCRITCgtjbGllbnRfYWRkchgPIAEoCSJtCg1BY2Nlc3NMb2dQYWdlEi4KBWl0ZW1zGAEgAygLMh8ucnVzdHZsZXNzLnJwYy52MS5BY2Nlc3NMb2dWaWV3Eg0KBXRvdGFsGAIgASgDEg0KBWxpbWl0GAMgASgDEg4KBm9mZnNldBgEIAEoAyI4ChZUcmFmZmljVG9wb2xvZ3lSZXF1ZXN0EhMKBndpbmRvdxgBIAEoA0gAiAEBQgkKB193aW5kb3ciawoQVG9wb2xvZ3lOb2RlVmlldxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhEKCWlzX21hc3RlchgDIAEoCBIOCgZvbmxpbmUYBCABKAgSGgoSYWN0aXZlX2Nvbm5lY3Rpb25zGAUgASgEIrQBChBUb3BvbG9neUxpbmtWaWV3EgoKAmlkGAEgASgJEhQKDGZyb21fbm9kZV9pZBgCIAEoCRISCgp0b19ub2RlX2lkGAMgASgJEjIKCXRyYW5zcG9ydBgEIAEoDjIfLnJ1c3R2bGVzcy5ycGMudjEuTGlua1RyYW5zcG9ydBIQCgh1cF9ieXRlcxgFIAEoBBISCgpkb3duX2J5dGVzGAYgASgEEhAKCHNlc3Npb25zGAcgASgEIo8BChNUcmFmZmljVG9wb2xvZ3lWaWV3EhIKCndpbmRvd19zZWMYASABKAMSMQoFbm9kZXMYAiADKAsyIi5ydXN0dmxlc3MucnBjLnYxLlRvcG9sb2d5Tm9kZVZpZXcSMQoFbGlua3MYAyADKAsyIi5ydXN0dmxlc3MucnBjLnYxLlRvcG9sb2d5TGlua1ZpZXciZgoKVHJhZmZpY1JvdxIPCgd1c2VyX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLb3duZXJfZW1haWwYAyABKAkSEAoIdXBfYnl0ZXMYBCABKAQSEgoKZG93bl9ieXRlcxgFIAEoBCI9Cg9UcmFmZmljT3ZlcnZpZXcSKgoEcm93cxgBIAMoCzIcLnJ1c3R2bGVzcy5ycGMudjEuVHJhZmZpY1JvdyIaCgdVcGdyYWRlEg8KB3ZlcnNpb24YASABKAkiOwoNVXBncmFkZVJlc3VsdBIPCgd2ZXJzaW9uGAEgASgJEgoKAm9rGAIgASgIEg0KBWVycm9yGAMgASgJIjEKC1NldHVwU3RhdHVzEhEKCWluc3RhbGxlZBgBIAEoCBIPCgd2ZXJzaW9uGAIgASgJIlkKDFNldHVwUmVxdWVzdBINCgVlbWFpbBgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRITCgttYXN0ZXJfbmFtZRgDIAEoCRITCgtzZXR1cF90b2tlbhgEIAEoCSJRCg9Ob2RlVmVyc2lvbkluZm8SDwoHbm9kZV9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3ZlcnNpb24YAyABKAkSDgoGb25saW5lGAQgASgIIm8KC1ZlcnNpb25JbmZvEhYKDm1hc3Rlcl92ZXJzaW9uGAEgASgJEhYKDmxhdGVzdF92ZXJzaW9uGAIgASgJEjAKBW5vZGVzGAMgAygLMiEucnVzdHZsZXNzLnJwYy52MS5Ob2RlVmVyc2lvbkluZm8iJQoSVXBkYXRlTm9kZXNSZXF1ZXN0Eg8KB3ZlcnNpb24YASABKAkiOAoTVXBkYXRlTm9kZXNSZXNwb25zZRIRCglyZXF1ZXN0ZWQYASABKA0SDgoGb25saW5lGAIgASgNIncKEFN1YnNjcmlwdGlvbkluZm8SDQoFdG9rZW4YASABKAkSEQoJdjJyYXlfdXJsGAIgASgJEhEKCWNsYXNoX3VybBgDIAEoCRIuCgV1c2VycxgEIAMoCzIfLnJ1c3R2bGVzcy5ycGMudjEuUHJveHlVc2VyVmlldypKCgdXZWJSb2xlEhgKFFdFQl9ST0xFX1VOU1BFQ0lGSUVEEAASEgoOV0VCX1JPTEVfQURNSU4QARIRCg1XRUJfUk9MRV9VU0VSEAIqYAoNTGlua1RyYW5zcG9ydBIeChpMSU5LX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEhYKEkxJTktfVFJBTlNQT1JUX1JQQxABEhcKE0xJTktfVFJBTlNQT1JUX0hUVFAQAjJbCgtOb2RlQ29udHJvbBJMCgZTdHJlYW0SHS5ydXN0dmxlc3MucnBjLnYxLk5vZGVNZXNzYWdlGh8ucnVzdHZsZXNzLnJwYy52MS5NYXN0ZXJNZXNzYWdlKAEwATJUCgVSZWxheRJLCgdGb3J3YXJkEh0ucnVzdHZsZXNzLnJwYy52MS5SZWxheVBhY2tldBodLnJ1c3R2bGVzcy5ycGMudjEuUmVsYXlQYWNrZXQoATABMqUQCghXZWJBZG1pbhJICgVMb2dpbhIeLnJ1c3R2bGVzcy5ycGMudjEuTG9naW5SZXF1ZXN0Gh8ucnVzdHZsZXNzLnJwYy52MS5Mb2dpblJlc3BvbnNlEjoKBkxvZ291dBIXLnJ1c3R2bGVzcy5ycGMudjEuRW1wdHkaFy5ydXN0dmxlc3MucnBjLnYxLkVtcHR5EjoKAk1lEhcucnVzdHZsZXNzLnJwYy52MS5FbXB0eRobLnJ1c3R2bGVzcy5ycGMudjEuQWRtaW5WaWV3EkAKCEdldFN0YXRzEhcucnVzdHZsZXNzLnJwYy52MS5FbXB0eRobLnJ1c3R2bGVzcy5ycGMudjEuU3RhdHNWaWV3EkgKDkdldFNldHVwU3RhdHVzEhcucnVzdHZsZXNzLnJwYy52MS5FbXB0eRodLnJ1c3R2bGVzcy5ycGMudjEuU2V0dXBTdGF0dXMSSAoFU2V0dXASHi5ydXN0dmxlc3MucnBjLnYxLlNldHVwUmVxdWVzdBofLnJ1c3R2bGVzcy5ycGMudjEuTG9naW5SZXNwb25zZRJICg5HZXRWZXJzaW9uSW5mbxIXLnJ1c3R2bGVzcy5ycGMudjEuRW1wdHkaHS5ydXN0dmxlc3MucnBjLnYxLlZlcnNpb25JbmZvEl0KDlVwZGF0ZUFsbE5vZGVzEiQucnVzdHZsZXNzLnJwYy52MS5VcGRhdGVOb2Rlc1JlcXVlc3QaJS5ydXN0dmxlc3MucnBjLnYxLlVwZGF0ZU5vZGVzUmVzcG9uc2USTgoPR2V0U3Vic2NyaXB0aW9uEhcucnVzdHZsZXNzLnJwYy52MS5FbXB0eRoiLnJ1c3R2bGVzcy5ycGMudjEuU3Vic2NyaXB0aW9uSW5mbxJACglMaXN0Tm9kZXMSFy5ydXN0dmxlc3MucnBjLnYxLkVtcHR5GhoucnVzdHZsZXNzLnJwYy52MS5Ob2RlTGlzdBJXCgpDcmVhdGVOb2RlEiMucnVzdHZsZXNzLnJwYy52MS5DcmVhdGVOb2RlUmVxdWVzdBokLnJ1c3R2bGVzcy5ycGMudjEuQ3JlYXRlTm9kZVJlc3BvbnNlEk0KClVwZGF0ZU5vZGUSIy5ydXN0dmxlc3MucnBjLnYxLlVwZGF0ZU5vZGVSZXF1ZXN0GhoucnVzdHZsZXNzLnJwYy52MS5Ob2RlVmlldxJKCgpEZWxldGVOb2RlEiMucnVzdHZsZXNzLnJwYy52MS5EZWxldGVOb2RlUmVxdWVzdBoXLnJ1c3R2bGVzcy5ycGMudjEuRW1wdHkSQAoJTGlzdFVzZXJzEhcucnVzdHZsZXNzLnJwYy52MS5FbXB0eRoaLnJ1c3R2bGVzcy5ycGMudjEuVXNlckxpc3QSUgoKQ3JlYXRlVXNlchIjLnJ1c3R2bGVzcy5ycGMudjEuQ3JlYXRlVXNlclJlcXVlc3QaHy5ydXN0dmxlc3MucnBjLnYxLlByb3h5VXNlclZpZXcSUgoKVXBkYXRlVXNlchIjLnJ1c3R2bGVzcy5ycGMudjEuVXBkYXRlVXNlclJlcXVlc3QaHy5ydXN0dmxlc3MucnBjLnYxLlByb3h5VXNlclZpZXcSSgoKRGVsZXRlVXNlchIjLnJ1c3R2bGVzcy5ycGMudjEuRGVsZXRlVXNlclJlcXVlc3QaFy5ydXN0dmxlc3MucnBjLnYxLkVtcHR5EkIKCkxpc3RBZG1pbnMSFy5ydXN0dmxlc3MucnBjLnYxLkVtcHR5GhsucnVzdHZsZXNzLnJwYy52MS5BZG1pbkxpc3QSUAoLQ3JlYXRlQWRtaW4SJC5ydXN0dmxlc3MucnBjLnYxLkNyZWF0ZUFkbWluUmVxdWVzdBobLnJ1c3R2bGVzcy5ycGMudjEuQWRtaW5WaWV3EkwKC0RlbGV0ZUFkbWluEiQucnVzdHZsZXNzLnJwYy52MS5EZWxldGVBZG1pblJlcXVlc3QaFy5ydXN0dmxlc3MucnBjLnYxLkVtcHR5EkAKCUxpc3RMaW5rcxIXLnJ1c3R2bGVzcy5ycGMudjEuRW1wdHkaGi5ydXN0dmxlc3MucnBjLnYxLkxpbmtMaXN0Ek0KCkNyZWF0ZUxpbmsSIy5ydXN0dmxlc3MucnBjLnYxLkNyZWF0ZUxpbmtSZXF1ZXN0GhoucnVzdHZsZXNzLnJwYy52MS5MaW5rVmlldxJKCgpEZWxldGVMaW5rEiMucnVzdHZsZXNzLnJwYy52MS5EZWxldGVMaW5rUmVxdWVzdBoXLnJ1c3R2bGVzcy5ycGMudjEuRW1wdHkSSgoLR2V0VG9wb2xvZ3kSFy5ydXN0dmxlc3MucnBjLnYxLkVtcHR5GiIucnVzdHZsZXNzLnJwYy52MS5Ub3BvbG9neVJlc3BvbnNlElYKDkxpc3RBY2Nlc3NMb2dzEiMucnVzdHZsZXNzLnJwYy52MS5BY2Nlc3NMb2dzUmVxdWVzdBofLnJ1c3R2bGVzcy5ycGMudjEuQWNjZXNzTG9nUGFnZRJlChJHZXRUcmFmZmljVG9wb2xvZ3kSKC5ydXN0dmxlc3MucnBjLnYxLlRyYWZmaWNUb3BvbG9neVJlcXVlc3QaJS5ydXN0dmxlc3MucnBjLnYxLlRyYWZmaWNUb3BvbG9neVZpZXcSUAoSR2V0VHJhZmZpY092ZXJ2aWV3EhcucnVzdHZsZXNzLnJwYy52MS5FbXB0eRohLnJ1c3R2bGVzcy5ycGMudjEuVHJhZmZpY092ZXJ2aWV3YgZwcm90bzM");
 
 /**
  * @generated from message rustvless.rpc.v1.NodeMessage
@@ -49,6 +49,12 @@ export type NodeMessage = Message<"rustvless.rpc.v1.NodeMessage"> & {
      */
     value: LinkTrafficReport;
     case: "linkTraffic";
+  } | {
+    /**
+     * @generated from field: rustvless.rpc.v1.UpgradeResult upgrade_result = 6;
+     */
+    value: UpgradeResult;
+    case: "upgradeResult";
   } | { case: undefined; value?: undefined };
 };
 
@@ -84,6 +90,12 @@ export type MasterMessage = Message<"rustvless.rpc.v1.MasterMessage"> & {
      */
     value: TopologyUpdate;
     case: "topology";
+  } | {
+    /**
+     * @generated from field: rustvless.rpc.v1.Upgrade upgrade = 4;
+     */
+    value: Upgrade;
+    case: "upgrade";
   } | { case: undefined; value?: undefined };
 };
 
@@ -627,7 +639,7 @@ export const RelayReadySchema: GenMessage<RelayReady> = /*@__PURE__*/
   messageDesc(file_rpc, 18);
 
 /**
- * Empty is used by methods that have no request or response payload.
+ * Empty 用于没有请求或响应负载的方法。
  *
  * @generated from message rustvless.rpc.v1.Empty
  */
@@ -705,7 +717,7 @@ export type AdminView = Message<"rustvless.rpc.v1.AdminView"> & {
   role: WebRole;
 
   /**
-   * Unix epoch milliseconds.
+   * Unix 毫秒时间戳。
    *
    * @generated from field: int64 created_at = 4;
    */
@@ -808,7 +820,7 @@ export type NodeView = Message<"rustvless.rpc.v1.NodeView"> & {
   name: string;
 
   /**
-   * "online" or "offline"; derived from the live control stream.
+   * "online" 或 "offline"；由实时控制通道推导。
    *
    * @generated from field: string status = 3;
    */
@@ -835,7 +847,7 @@ export type NodeView = Message<"rustvless.rpc.v1.NodeView"> & {
   isMaster: boolean;
 
   /**
-   * Unix epoch milliseconds.
+   * Unix 毫秒时间戳。
    *
    * @generated from field: int64 last_seen = 8;
    */
@@ -908,7 +920,7 @@ export type CreateNodeResponse = Message<"rustvless.rpc.v1.CreateNodeResponse"> 
   node?: NodeView | undefined;
 
   /**
-   * One-time node token; it is never readable again after this response.
+   * 一次性节点 token；返回后无法再次读取。
    *
    * @generated from field: string token = 2;
    */
@@ -923,8 +935,8 @@ export const CreateNodeResponseSchema: GenMessage<CreateNodeResponse> = /*@__PUR
   messageDesc(file_rpc, 28);
 
 /**
- * UpdateNodeRequest uses optional fields so callers can patch a subset of
- * columns, matching the REST PATCH semantics.
+ * UpdateNodeRequest 使用 optional 字段，允许调用方只更新部分列，
+ * 与 REST PATCH 语义一致。
  *
  * @generated from message rustvless.rpc.v1.UpdateNodeRequest
  */
@@ -1053,7 +1065,7 @@ export type CreateUserRequest = Message<"rustvless.rpc.v1.CreateUserRequest"> & 
   name: string;
 
   /**
-   * Only honoured for admin callers; regular users always own their users.
+   * 只对 admin 调用方生效；普通用户创建的用户总是归自己所有。
    *
    * @generated from field: optional string owner_id = 2;
    */
@@ -1126,7 +1138,7 @@ export type CreateAdminRequest = Message<"rustvless.rpc.v1.CreateAdminRequest"> 
   password: string;
 
   /**
-   * Defaults to WEB_ROLE_USER when unset.
+   * 未设置时默认为 WEB_ROLE_USER。
    *
    * @generated from field: optional rustvless.rpc.v1.WebRole role = 3;
    */
@@ -1246,7 +1258,7 @@ export type CreateLinkRequest = Message<"rustvless.rpc.v1.CreateLinkRequest"> & 
   toNodeId: string;
 
   /**
-   * Defaults to LINK_TRANSPORT_RPC when unspecified.
+   * 未指定时默认为 LINK_TRANSPORT_RPC。
    *
    * @generated from field: rustvless.rpc.v1.LinkTransport transport = 3;
    */
@@ -1305,8 +1317,8 @@ export const TopologyResponseSchema: GenMessage<TopologyResponse> = /*@__PURE__*
   messageDesc(file_rpc, 42);
 
 /**
- * AccessLogsRequest filters the access log page. All filters are ANDed;
- * unset fields are ignored.
+ * AccessLogsRequest 过滤访问日志页；所有条件按 AND 组合，
+ * 未设置的字段忽略。
  *
  * @generated from message rustvless.rpc.v1.AccessLogsRequest
  */
@@ -1483,7 +1495,7 @@ export const AccessLogPageSchema: GenMessage<AccessLogPage> = /*@__PURE__*/
  */
 export type TrafficTopologyRequest = Message<"rustvless.rpc.v1.TrafficTopologyRequest"> & {
   /**
-   * Window size in seconds; clamped server-side to [60, 604800].
+   * 窗口大小（秒）；服务端限制在 [60, 604800]。
    *
    * @generated from field: optional int64 window = 1;
    */
@@ -1663,7 +1675,257 @@ export const TrafficOverviewSchema: GenMessage<TrafficOverview> = /*@__PURE__*/
   messageDesc(file_rpc, 51);
 
 /**
- * WebRole mirrors the two account levels of the control plane.
+ * Upgrade 指示节点执行自升级脚本，version 为目标版本。
+ *
+ * @generated from message rustvless.rpc.v1.Upgrade
+ */
+export type Upgrade = Message<"rustvless.rpc.v1.Upgrade"> & {
+  /**
+   * @generated from field: string version = 1;
+   */
+  version: string;
+};
+
+/**
+ * Describes the message rustvless.rpc.v1.Upgrade.
+ * Use `create(UpgradeSchema)` to create a new message.
+ */
+export const UpgradeSchema: GenMessage<Upgrade> = /*@__PURE__*/
+  messageDesc(file_rpc, 52);
+
+/**
+ * UpgradeResult 由节点在尝试升级后回报。
+ * ok=true 表示升级命令已成功启动；下载/替换失败会在 error 中返回。
+ * 升级是否真正完成，以节点重启后上报的新版本号为准。
+ *
+ * @generated from message rustvless.rpc.v1.UpgradeResult
+ */
+export type UpgradeResult = Message<"rustvless.rpc.v1.UpgradeResult"> & {
+  /**
+   * @generated from field: string version = 1;
+   */
+  version: string;
+
+  /**
+   * @generated from field: bool ok = 2;
+   */
+  ok: boolean;
+
+  /**
+   * @generated from field: string error = 3;
+   */
+  error: string;
+};
+
+/**
+ * Describes the message rustvless.rpc.v1.UpgradeResult.
+ * Use `create(UpgradeResultSchema)` to create a new message.
+ */
+export const UpgradeResultSchema: GenMessage<UpgradeResult> = /*@__PURE__*/
+  messageDesc(file_rpc, 53);
+
+/**
+ * SetupStatus 描述主节点是否已完成首次安装。
+ *
+ * @generated from message rustvless.rpc.v1.SetupStatus
+ */
+export type SetupStatus = Message<"rustvless.rpc.v1.SetupStatus"> & {
+  /**
+   * @generated from field: bool installed = 1;
+   */
+  installed: boolean;
+
+  /**
+   * @generated from field: string version = 2;
+   */
+  version: string;
+};
+
+/**
+ * Describes the message rustvless.rpc.v1.SetupStatus.
+ * Use `create(SetupStatusSchema)` to create a new message.
+ */
+export const SetupStatusSchema: GenMessage<SetupStatus> = /*@__PURE__*/
+  messageDesc(file_rpc, 54);
+
+/**
+ * SetupRequest 是首次安装表单；仅在未安装时可用。
+ *
+ * @generated from message rustvless.rpc.v1.SetupRequest
+ */
+export type SetupRequest = Message<"rustvless.rpc.v1.SetupRequest"> & {
+  /**
+   * @generated from field: string email = 1;
+   */
+  email: string;
+
+  /**
+   * @generated from field: string password = 2;
+   */
+  password: string;
+
+  /**
+   * @generated from field: string master_name = 3;
+   */
+  masterName: string;
+
+  /**
+   * 启动日志中打印的一次性安装码，防止远程访问者抢先创建管理员。
+   *
+   * @generated from field: string setup_token = 4;
+   */
+  setupToken: string;
+};
+
+/**
+ * Describes the message rustvless.rpc.v1.SetupRequest.
+ * Use `create(SetupRequestSchema)` to create a new message.
+ */
+export const SetupRequestSchema: GenMessage<SetupRequest> = /*@__PURE__*/
+  messageDesc(file_rpc, 55);
+
+/**
+ * NodeVersionInfo 是单个节点的版本快照。
+ *
+ * @generated from message rustvless.rpc.v1.NodeVersionInfo
+ */
+export type NodeVersionInfo = Message<"rustvless.rpc.v1.NodeVersionInfo"> & {
+  /**
+   * @generated from field: string node_id = 1;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string version = 3;
+   */
+  version: string;
+
+  /**
+   * @generated from field: bool online = 4;
+   */
+  online: boolean;
+};
+
+/**
+ * Describes the message rustvless.rpc.v1.NodeVersionInfo.
+ * Use `create(NodeVersionInfoSchema)` to create a new message.
+ */
+export const NodeVersionInfoSchema: GenMessage<NodeVersionInfo> = /*@__PURE__*/
+  messageDesc(file_rpc, 56);
+
+/**
+ * VersionInfo 汇总主节点与所有节点的版本。
+ *
+ * @generated from message rustvless.rpc.v1.VersionInfo
+ */
+export type VersionInfo = Message<"rustvless.rpc.v1.VersionInfo"> & {
+  /**
+   * @generated from field: string master_version = 1;
+   */
+  masterVersion: string;
+
+  /**
+   * @generated from field: string latest_version = 2;
+   */
+  latestVersion: string;
+
+  /**
+   * @generated from field: repeated rustvless.rpc.v1.NodeVersionInfo nodes = 3;
+   */
+  nodes: NodeVersionInfo[];
+};
+
+/**
+ * Describes the message rustvless.rpc.v1.VersionInfo.
+ * Use `create(VersionInfoSchema)` to create a new message.
+ */
+export const VersionInfoSchema: GenMessage<VersionInfo> = /*@__PURE__*/
+  messageDesc(file_rpc, 57);
+
+/**
+ * UpdateNodesRequest 指定目标版本；为空表示主节点当前版本。
+ *
+ * @generated from message rustvless.rpc.v1.UpdateNodesRequest
+ */
+export type UpdateNodesRequest = Message<"rustvless.rpc.v1.UpdateNodesRequest"> & {
+  /**
+   * @generated from field: string version = 1;
+   */
+  version: string;
+};
+
+/**
+ * Describes the message rustvless.rpc.v1.UpdateNodesRequest.
+ * Use `create(UpdateNodesRequestSchema)` to create a new message.
+ */
+export const UpdateNodesRequestSchema: GenMessage<UpdateNodesRequest> = /*@__PURE__*/
+  messageDesc(file_rpc, 58);
+
+/**
+ * UpdateNodesResponse 返回本次升级的请求数量与在线节点数。
+ *
+ * @generated from message rustvless.rpc.v1.UpdateNodesResponse
+ */
+export type UpdateNodesResponse = Message<"rustvless.rpc.v1.UpdateNodesResponse"> & {
+  /**
+   * @generated from field: uint32 requested = 1;
+   */
+  requested: number;
+
+  /**
+   * @generated from field: uint32 online = 2;
+   */
+  online: number;
+};
+
+/**
+ * Describes the message rustvless.rpc.v1.UpdateNodesResponse.
+ * Use `create(UpdateNodesResponseSchema)` to create a new message.
+ */
+export const UpdateNodesResponseSchema: GenMessage<UpdateNodesResponse> = /*@__PURE__*/
+  messageDesc(file_rpc, 59);
+
+/**
+ * SubscriptionInfo 是当前账号的订阅入口与代理用户。
+ *
+ * @generated from message rustvless.rpc.v1.SubscriptionInfo
+ */
+export type SubscriptionInfo = Message<"rustvless.rpc.v1.SubscriptionInfo"> & {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token: string;
+
+  /**
+   * @generated from field: string v2ray_url = 2;
+   */
+  v2rayUrl: string;
+
+  /**
+   * @generated from field: string clash_url = 3;
+   */
+  clashUrl: string;
+
+  /**
+   * @generated from field: repeated rustvless.rpc.v1.ProxyUserView users = 4;
+   */
+  users: ProxyUserView[];
+};
+
+/**
+ * Describes the message rustvless.rpc.v1.SubscriptionInfo.
+ * Use `create(SubscriptionInfoSchema)` to create a new message.
+ */
+export const SubscriptionInfoSchema: GenMessage<SubscriptionInfo> = /*@__PURE__*/
+  messageDesc(file_rpc, 60);
+
+/**
+ * WebRole 对应控制面的两种账号级别。
  *
  * @generated from enum rustvless.rpc.v1.WebRole
  */
@@ -1691,7 +1953,7 @@ export const WebRoleSchema: GenEnum<WebRole> = /*@__PURE__*/
   enumDesc(file_rpc, 0);
 
 /**
- * LinkTransport selects how a relay hop reaches the next node.
+ * LinkTransport 决定中转跳如何连接下一节点。
  *
  * @generated from enum rustvless.rpc.v1.LinkTransport
  */
@@ -1719,8 +1981,8 @@ export const LinkTransportSchema: GenEnum<LinkTransport> = /*@__PURE__*/
   enumDesc(file_rpc, 1);
 
 /**
- * NodeControl is the persistent control channel between a child node and the
- * master. Nodes dial out, so they do not need an inbound control port.
+ * NodeControl 是子节点到主节点的长连接控制通道。
+ * 由节点主动拨号，因此主节点不需要为控制面开放入站端口。
  *
  * @generated from service rustvless.rpc.v1.NodeControl
  */
@@ -1737,8 +1999,8 @@ export const NodeControl: GenService<{
   serviceDesc(file_rpc, 0);
 
 /**
- * Relay forwards a VLESS session between two nodes. Every node serves this
- * service, which is what makes any node usable as a transit hop.
+ * Relay 在两个节点之间转发 VLESS 会话。每个节点都提供该服务，
+ * 因此任意节点都可以作为中转跳。
  *
  * @generated from service rustvless.rpc.v1.Relay
  */
@@ -1756,17 +2018,14 @@ export const Relay: GenService<{
 
 /**
  * ---------------------------------------------------------------------------
- * Web admin RPC
+ * Web 管理 RPC
  *
- * The browser console talks to the master over gRPC-Web (Connect protocol
- * wire format). Everything the React app needs is exposed here so the web
- * client no longer depends on the JSON REST surface. The REST endpoints stay
- * available for scripts, but both surfaces share the same service layer so
- * behaviour cannot drift.
+ * 浏览器控制台通过 gRPC-Web（Connect 客户端）调用主节点。React 应用需要的
+ * 全部能力都在这里暴露，前端不再依赖 JSON REST；REST 仍保留给脚本使用，
+ * 两种传输共用同一个服务层，避免行为分叉。
  *
- * Auth: every method except Login requires the session token in the
- * `authorization: Bearer <token>` metadata. The token is the same one issued
- * by Login and is never sent in a message body.
+ * 鉴权：除 Login 外，每个方法都要求 metadata 中的
+ * `authorization: Bearer <token>`。token 由 Login 签发，不会出现在消息体里。
  * ---------------------------------------------------------------------------
  *
  * @generated from service rustvless.rpc.v1.WebAdmin
@@ -1803,6 +2062,52 @@ export const WebAdmin: GenService<{
     methodKind: "unary";
     input: typeof EmptySchema;
     output: typeof StatsViewSchema;
+  },
+  /**
+   * 首次安装：未创建任何管理账号时，浏览器通过这两个方法完成初始化。
+   *
+   * @generated from rpc rustvless.rpc.v1.WebAdmin.GetSetupStatus
+   */
+  getSetupStatus: {
+    methodKind: "unary";
+    input: typeof EmptySchema;
+    output: typeof SetupStatusSchema;
+  },
+  /**
+   * @generated from rpc rustvless.rpc.v1.WebAdmin.Setup
+   */
+  setup: {
+    methodKind: "unary";
+    input: typeof SetupRequestSchema;
+    output: typeof LoginResponseSchema;
+  },
+  /**
+   * 版本检测与节点批量升级。
+   *
+   * @generated from rpc rustvless.rpc.v1.WebAdmin.GetVersionInfo
+   */
+  getVersionInfo: {
+    methodKind: "unary";
+    input: typeof EmptySchema;
+    output: typeof VersionInfoSchema;
+  },
+  /**
+   * @generated from rpc rustvless.rpc.v1.WebAdmin.UpdateAllNodes
+   */
+  updateAllNodes: {
+    methodKind: "unary";
+    input: typeof UpdateNodesRequestSchema;
+    output: typeof UpdateNodesResponseSchema;
+  },
+  /**
+   * 当前账号的订阅信息（Clash / V2Ray 链接）。
+   *
+   * @generated from rpc rustvless.rpc.v1.WebAdmin.GetSubscription
+   */
+  getSubscription: {
+    methodKind: "unary";
+    input: typeof EmptySchema;
+    output: typeof SubscriptionInfoSchema;
   },
   /**
    * @generated from rpc rustvless.rpc.v1.WebAdmin.ListNodes

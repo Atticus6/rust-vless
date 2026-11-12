@@ -119,3 +119,28 @@ export type CreateNodeResponse = {
   node: NodeView
   token: string
 }
+
+export type SetupStatus = {
+  installed: boolean
+  version: string
+}
+
+export type NodeVersion = {
+  nodeId: string
+  name: string
+  version: string
+  online: boolean
+}
+
+export type VersionInfo = {
+  masterVersion: string
+  latestVersion: string
+  nodes: NodeVersion[]
+}
+
+export type SubscriptionInfo = {
+  token: string
+  v2rayUrl: string
+  clashUrl: string
+  users: ProxyUserView[]
+}
