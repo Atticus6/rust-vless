@@ -1,3 +1,4 @@
+import { Button, cn } from '@heroui/react'
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import {
   Activity,
@@ -9,10 +10,8 @@ import {
   UsersRound,
 } from 'lucide-react'
 import { Toaster } from 'sonner'
-import { Button } from '@/components/ui/button'
-import { api } from '@/lib/api'
 import { clearAuth, getAdmin } from '@/lib/auth'
-import { cn } from '@/lib/utils'
+import { logout } from '@/lib/rpc'
 
 const nav = [
   { to: '/', label: '总览', icon: LayoutDashboard, exact: true, adminOnly: false },
@@ -28,9 +27,9 @@ export function AppLayout() {
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
 
-  async function logout() {
+  async function signOut() {
     try {
-      await api('/api/auth/logout', { method: 'POST' })
+      await logout()
     } catch {
       // The local session is cleared even if the server is unreachable.
     }
@@ -40,14 +39,14 @@ export function AppLayout() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden w-56 shrink-0 flex-col border-r bg-card/60 p-4 md:flex">
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-border bg-surface p-4 md:flex">
         <Link to="/" className="mb-8 flex items-center gap-2 px-2">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-accent text-accent-foreground">
             <Network className="h-5 w-5" />
           </div>
           <div>
             <div className="text-sm font-semibold">rust-vless</div>
-            <div className="text-[11px] text-muted-foreground">control plane</div>
+            <div className="text-[11px] text-muted">control plane</div>
           </div>
         </Link>
 
@@ -59,8 +58,8 @@ export function AppLayout() {
                 key={item.to}
                 to={item.to}
                 className={cn(
-                  'flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-                  active && 'bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary',
+                  'flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted transition-colors hover:bg-surface-secondary hover:text-foreground',
+                  active && 'bg-accent/10 text-accent hover:bg-accent/10 hover:text-accent',
                 )}
               >
                 <item.icon className="h-4 w-4" />
@@ -70,12 +69,16 @@ export function AppLayout() {
           })}
         </nav>
 
-        <div className="mt-auto space-y-3 border-t pt-4">
-          <div className="px-2 text-xs text-muted-foreground">
+        <div className="mt-auto space-y-3 border-t border-border pt-4">
+          <div className="px-2 text-xs text-muted">
             <div className="truncate">{admin?.email ?? '未登录'}</div>
             <div className="mt-0.5 uppercase tracking-wide">{admin?.role ?? ''}</div>
           </div>
-          <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => void logout()}>
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-2"
+            onPress={() => void signOut()}
+          >
             <LogOut className="h-4 w-4" />
             退出登录
           </Button>
@@ -87,7 +90,7 @@ export function AppLayout() {
           <Outlet />
         </div>
       </main>
-      <Toaster richColors position="top-right" theme="dark" />
+      <Toaster richColors position="top-right" />
     </div>
   )
 }

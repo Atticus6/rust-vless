@@ -4,7 +4,11 @@ mod config;
 mod db;
 mod error;
 mod rpc;
+mod service;
 mod state;
+#[cfg(test)]
+mod test_support;
+mod web_rpc;
 
 use std::net::SocketAddr;
 use std::sync::Arc;

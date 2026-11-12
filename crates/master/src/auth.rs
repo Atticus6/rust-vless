@@ -4,7 +4,6 @@ use argon2::Argon2;
 use axum::http::HeaderMap;
 use uuid::Uuid;
 
-use crate::db::{AdminRecord, Db, Role};
 use crate::error::ApiError;
 
 pub fn hash_password(password: &str) -> Result<String, ApiError> {
@@ -35,22 +34,6 @@ pub fn bearer_token(headers: &HeaderMap) -> Option<String> {
         .strip_prefix("Bearer ")
         .map(|token| token.trim().to_string())
         .filter(|token| !token.is_empty())
-}
-
-pub async fn current_admin(db: &Db, headers: &HeaderMap) -> Result<AdminRecord, ApiError> {
-    let token = bearer_token(headers).ok_or(ApiError::Unauthorized)?;
-    db.session_admin(&token)
-        .await
-        .map_err(ApiError::from)?
-        .ok_or(ApiError::Unauthorized)
-}
-
-pub async fn require_admin(db: &Db, headers: &HeaderMap) -> Result<AdminRecord, ApiError> {
-    let admin = current_admin(db, headers).await?;
-    if admin.role != Role::Admin {
-        return Err(ApiError::Forbidden);
-    }
-    Ok(admin)
 }
 
 pub fn parse_uuid(raw: &str) -> Result<Uuid, ApiError> {

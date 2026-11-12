@@ -27,7 +27,7 @@
 - **必须覆盖的场景**：空输入与非法输入、边界（0/最大值/超长）、并发与超时、重连与部分失败、权限与鉴权失败路径、协议编解码的往返一致性（encode→decode 等价）。
 - **测试要确定性**：使用固定种子/固定时钟/临时目录，不依赖执行顺序与外部服务；需要时间的逻辑注入 clock 或使用可缩短的超时，禁止 `sleep` 等计时。
 - **断言要有意义**：断言具体值或状态，不使用只验证「不 panic」的空断言；每个用例只验证一件事，用例名要能描述期望行为（如 `rejects_expired_token`）。
-- **提交前必须本地跑通**：Rust 执行 `cargo test --workspace`，且 `cargo clippy --workspace --all-targets` 无新增告警；Web 在 `web/` 下执行构建与类型检查（`bun run build`）。测试失败不得提交，也不得通过删除或跳过测试来「修好」它们。
+- **提交前必须本地跑通**：Rust 执行 `cargo test --workspace`，且 `cargo clippy --workspace --all-targets` 无新增告警；Web 在 `web/` 下执行 `bun run test`、`bun run typecheck` 与 `bun run build`。测试失败不得提交，也不得通过删除或跳过测试来「修好」它们。
 
 ## CodeRabbit 审查
 

@@ -1,22 +1,9 @@
+import { Button, Card, Chip, Input, Label, Modal, Table, TextField } from '@heroui/react'
 import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { api } from '@/lib/api'
 import { formatRelative } from '@/lib/format'
+import { createNode, deleteNode, listNodes, updateNode } from '@/lib/rpc'
 import type { CreateNodeResponse, NodeView } from '@/lib/types'
 
 export function NodesPage() {
@@ -32,7 +19,7 @@ export function NodesPage() {
 
   const load = useCallback(async () => {
     try {
-      setNodes(await api<NodeView[]>('/api/nodes'))
+      setNodes(await listNodes())
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '加载节点失败')
     }
@@ -46,10 +33,7 @@ export function NodesPage() {
     if (!name.trim()) return
     setBusy(true)
     try {
-      const result = await api<CreateNodeResponse>('/api/nodes', {
-        method: 'POST',
-        body: JSON.stringify({ name }),
-      })
+      const result = await createNode(name)
       setCreated(result)
       setCreateOpen(false)
       setName('')
@@ -65,10 +49,7 @@ export function NodesPage() {
     if (!editing) return
     setBusy(true)
     try {
-      await api(`/api/nodes/${editing.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ name: editName, httpUrl: editHttp, rpcUrl: editRpc }),
-      })
+      await updateNode(editing.id, { name: editName, httpUrl: editHttp, rpcUrl: editRpc })
       setEditing(null)
       await load()
       toast.success('节点已更新')
@@ -82,7 +63,7 @@ export function NodesPage() {
   async function remove(node: NodeView) {
     if (!window.confirm(`删除节点 ${node.name}？`)) return
     try {
-      await api(`/api/nodes/${node.id}`, { method: 'DELETE' })
+      await deleteNode(node.id)
       await load()
       toast.success('节点已删除')
     } catch (error) {
@@ -121,149 +102,190 @@ export function NodesPage() {
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">节点</h1>
-          <p className="text-sm text-muted-foreground">主节点与子节点；子节点主动连接主节点</p>
+          <p className="text-sm text-muted">主节点与子节点；子节点主动连接主节点</p>
         </div>
-        <Button className="gap-2" onClick={() => setCreateOpen(true)}>
+        <Button className="gap-2" onPress={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" /> 创建节点
         </Button>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">节点列表</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <Card.Header>
+          <Card.Title className="text-base">节点列表</Card.Title>
+        </Card.Header>
+        <Card.Content>
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>名称</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>HTTP</TableHead>
-                <TableHead>RPC</TableHead>
-                <TableHead>版本</TableHead>
-                <TableHead>连接</TableHead>
-                <TableHead>最近心跳</TableHead>
-                <TableHead className="text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {nodes.map((node) => (
-                <TableRow key={node.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{node.name}</span>
-                      {node.isMaster && <Badge variant="secondary">Master</Badge>}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={node.status === 'online' ? 'success' : 'outline'}>
-                      {node.status === 'online' ? '在线' : '离线'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="max-w-40 truncate text-xs text-muted-foreground">{node.httpUrl || '—'}</TableCell>
-                  <TableCell className="max-w-40 truncate text-xs text-muted-foreground">{node.rpcUrl || '—'}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{node.version || '—'}</TableCell>
-                  <TableCell>{node.activeConnections}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{formatRelative(node.lastSeen)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditing(node)
-                          setEditName(node.name)
-                          setEditHttp(node.httpUrl)
-                          setEditRpc(node.rpcUrl)
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {!node.isMaster && (
-                        <Button variant="ghost" size="icon" onClick={() => void remove(node)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
+            <Table.Content aria-label="节点列表">
+              <Table.Header>
+                <Table.Column isRowHeader>名称</Table.Column>
+                <Table.Column>状态</Table.Column>
+                <Table.Column>HTTP</Table.Column>
+                <Table.Column>RPC</Table.Column>
+                <Table.Column>版本</Table.Column>
+                <Table.Column>连接</Table.Column>
+                <Table.Column>最近心跳</Table.Column>
+                <Table.Column className="text-right">操作</Table.Column>
+              </Table.Header>
+              <Table.Body
+                renderEmptyState={() => (
+                  <div className="py-8 text-center text-sm text-muted">还没有节点</div>
+                )}
+              >
+                {nodes.map((node) => (
+                  <Table.Row key={node.id} id={node.id}>
+                    <Table.Cell>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{node.name}</span>
+                        {node.isMaster && (
+                          <Chip size="sm" variant="soft" color="accent">
+                            Master
+                          </Chip>
+                        )}
+                      </div>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Chip size="sm" variant="soft" color={node.status === 'online' ? 'success' : 'default'}>
+                        {node.status === 'online' ? '在线' : '离线'}
+                      </Chip>
+                    </Table.Cell>
+                    <Table.Cell className="max-w-40 truncate text-xs text-muted">
+                      {node.httpUrl || '—'}
+                    </Table.Cell>
+                    <Table.Cell className="max-w-40 truncate text-xs text-muted">
+                      {node.rpcUrl || '—'}
+                    </Table.Cell>
+                    <Table.Cell className="text-xs text-muted">{node.version || '—'}</Table.Cell>
+                    <Table.Cell>{node.activeConnections}</Table.Cell>
+                    <Table.Cell className="text-xs text-muted">{formatRelative(node.lastSeen)}</Table.Cell>
+                    <Table.Cell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          isIconOnly
+                          aria-label={`编辑 ${node.name}`}
+                          onPress={() => {
+                            setEditing(node)
+                            setEditName(node.name)
+                            setEditHttp(node.httpUrl)
+                            setEditRpc(node.rpcUrl)
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
                         </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {nodes.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
-                    还没有节点
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
+                        {!node.isMaster && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            isIconOnly
+                            aria-label={`删除 ${node.name}`}
+                            onPress={() => void remove(node)}
+                          >
+                            <Trash2 className="h-4 w-4 text-danger" />
+                          </Button>
+                        )}
+                      </div>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Content>
           </Table>
-        </CardContent>
+        </Card.Content>
       </Card>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>创建子节点</DialogTitle>
-            <DialogDescription>创建后会展示一次性 token，请立即保存。</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="node-name">名称</Label>
-            <Input id="node-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="tokyo-1" />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>取消</Button>
-            <Button onClick={() => void create()} disabled={busy || !name.trim()}>创建</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={Boolean(created)} onOpenChange={(open) => !open && setCreated(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>节点已创建</DialogTitle>
-            <DialogDescription>token 只显示一次，复制下面的启动命令并保存。</DialogDescription>
-          </DialogHeader>
-          <div className="rounded-md border bg-muted/40 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">启动命令</span>
-              <Button variant="outline" size="sm" className="gap-1" onClick={() => void copy(startCommand)}>
-                <Copy className="h-3.5 w-3.5" /> 复制
+      <Modal.Backdrop isOpen={createOpen} onOpenChange={setCreateOpen}>
+        <Modal.Container>
+          <Modal.Dialog>
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading>创建子节点</Modal.Heading>
+              <p className="text-sm text-muted">创建后会展示一次性 token，请立即保存。</p>
+            </Modal.Header>
+            <Modal.Body>
+              <TextField variant="secondary" fullWidth value={name} onChange={setName}>
+                <Label>名称</Label>
+                <Input placeholder="tokyo-1" />
+              </TextField>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button slot="close" variant="secondary">
+                取消
               </Button>
-            </div>
-            <pre className="whitespace-pre-wrap break-all text-xs">{startCommand}</pre>
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setCreated(null)}>完成</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <Button onPress={() => void create()} isDisabled={busy || !name.trim()}>
+                创建
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
 
-      <Dialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>编辑节点</DialogTitle>
-            <DialogDescription>公网地址用于其他节点建立中转连线。</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">名称</Label>
-              <Input id="edit-name" value={editName} onChange={(event) => setEditName(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-http">公网 HTTP 地址</Label>
-              <Input id="edit-http" value={editHttp} onChange={(event) => setEditHttp(event.target.value)} placeholder="http://node:8080" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-rpc">公网 RPC 地址</Label>
-              <Input id="edit-rpc" value={editRpc} onChange={(event) => setEditRpc(event.target.value)} placeholder="http://node:50051" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>取消</Button>
-            <Button onClick={() => void saveEdit()} disabled={busy}>保存</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <Modal.Backdrop isOpen={Boolean(created)} onOpenChange={(open) => !open && setCreated(null)}>
+        <Modal.Container>
+          <Modal.Dialog className="sm:max-w-2xl">
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading>节点已创建</Modal.Heading>
+              <p className="text-sm text-muted">token 只显示一次，复制下面的启动命令并保存。</p>
+            </Modal.Header>
+            <Modal.Body>
+              <div className="rounded-md border border-border bg-surface-secondary p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted">启动命令</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onPress={() => void copy(startCommand)}
+                  >
+                    <Copy className="h-3.5 w-3.5" /> 复制
+                  </Button>
+                </div>
+                <pre className="whitespace-pre-wrap break-all text-xs">{startCommand}</pre>
+              </div>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button slot="close">完成</Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+
+      <Modal.Backdrop isOpen={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)}>
+        <Modal.Container>
+          <Modal.Dialog>
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading>编辑节点</Modal.Heading>
+              <p className="text-sm text-muted">公网地址用于其他节点建立中转连线。</p>
+            </Modal.Header>
+            <Modal.Body>
+              <div className="space-y-3">
+                <TextField variant="secondary" fullWidth value={editName} onChange={setEditName}>
+                  <Label>名称</Label>
+                  <Input />
+                </TextField>
+                <TextField variant="secondary" fullWidth value={editHttp} onChange={setEditHttp}>
+                  <Label>公网 HTTP 地址</Label>
+                  <Input placeholder="http://node:8080" />
+                </TextField>
+                <TextField variant="secondary" fullWidth value={editRpc} onChange={setEditRpc}>
+                  <Label>公网 RPC 地址</Label>
+                  <Input placeholder="http://node:50051" />
+                </TextField>
+              </div>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button slot="close" variant="secondary">
+                取消
+              </Button>
+              <Button onPress={() => void saveEdit()} isDisabled={busy}>
+                保存
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
     </div>
   )
 }

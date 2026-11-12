@@ -2425,6 +2425,7 @@ dependencies = [
  "clap",
  "futures-util",
  "hex",
+ "prost 0.13.5",
  "rand 0.8.8",
  "rust-vless-common",
  "rust-vless-dataplane",
@@ -2435,6 +2436,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
+ "tonic-web",
  "tower",
  "tower-http",
  "tracing",
@@ -3191,6 +3193,24 @@ dependencies = [
  "prost-types",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "tonic-web"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "774cad0f35370f81b6c59e3a1f5d0c3188bdb4a2a1b8b7f0921c860bfbd3aec6"
+dependencies = [
+ "base64",
+ "bytes",
+ "http",
+ "http-body",
+ "pin-project",
+ "tokio-stream",
+ "tonic",
+ "tower-layer",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]

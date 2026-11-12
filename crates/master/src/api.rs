@@ -1,26 +1,34 @@
+//! JSON HTTP surface plus SPA hosting.
+//!
+//! Every handler is a thin adapter: it extracts credentials from the
+//! `Authorization` header, delegates to [`crate::service`], and maps the
+//! result to JSON. The browser console itself uses the `WebAdmin` gRPC-Web
+//! service mounted on the same port, so both surfaces share one
+//! implementation.
+
+use std::path::Path;
 use std::sync::Arc;
 
-use axum::extract::{Path, Query, State};
-use axum::http::HeaderMap;
+use axum::extract::{Path as AxumPath, Query, State};
+use axum::http::{header::HeaderName, HeaderMap};
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
+use tonic_web::GrpcWebLayer;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
-use uuid::Uuid;
 
-use rust_vless_common::util::{now_ms, random_hex};
+use rust_vless_proto::web_admin_server::WebAdminServer;
 
-use crate::auth::{
-    bearer_token, current_admin, hash_password, parse_uuid, require_admin, verify_password,
-};
+use crate::auth::{bearer_token, parse_uuid};
 use crate::db::{
-    AccessLogPage, AccessLogQuery, AdminView, DeleteAdminOutcome, LinkView, NodeView,
-    ProxyUserView, Role, TrafficRow,
+    AccessLogPage, AccessLogQuery, AdminView, LinkView, NodeView, ProxyUserView, Role,
 };
 use crate::error::ApiError;
+use crate::service::{self, TopologyResponse};
 use crate::state::AppState;
+use crate::web_rpc::WebAdminService;
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
@@ -76,52 +84,44 @@ fn ok() -> Json<OkResponse> {
     Json(OkResponse { ok: true })
 }
 
-fn scope(admin: &crate::db::AdminRecord) -> Option<Uuid> {
-    if admin.role == Role::Admin {
-        None
-    } else {
-        Some(admin.id)
-    }
+/// Resolve the caller from the `Authorization` header.
+async fn session(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<crate::db::AdminRecord, ApiError> {
+    let token = bearer_token(headers).ok_or(ApiError::Unauthorized)?;
+    service::admin_for_token(state, &token).await
 }
 
-fn validate_name(name: &str) -> Result<String, ApiError> {
-    let name = name.trim();
-    if name.is_empty() || name.chars().count() > 64 {
-        return Err(ApiError::BadRequest(
-            "name must be between 1 and 64 characters".into(),
-        ));
-    }
-    Ok(name.to_string())
+async fn admin_session(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<crate::db::AdminRecord, ApiError> {
+    let token = bearer_token(headers).ok_or(ApiError::Unauthorized)?;
+    service::admin_for_token_strict(state, &token).await
 }
 
-fn validate_email(email: &str) -> Result<String, ApiError> {
-    let email = email.trim().to_lowercase();
-    let Some((local, domain)) = email.split_once('@') else {
-        return Err(ApiError::BadRequest("invalid email".into()));
-    };
-    if local.is_empty()
-        || domain.is_empty()
-        || !domain.contains('.')
-        || email.len() > 254
-        || email.chars().any(char::is_whitespace)
-    {
-        return Err(ApiError::BadRequest("invalid email".into()));
-    }
-    Ok(email)
-}
-
-fn validate_password(password: &str) -> Result<(), ApiError> {
-    if password.len() < 8 || password.len() > 128 {
-        return Err(ApiError::BadRequest(
-            "password must be between 8 and 128 characters".into(),
-        ));
-    }
-    Ok(())
-}
-
+/// Build the complete master HTTP router.
+///
+/// The router serves three kinds of paths, in this order:
+/// 1. `/api/*` JSON endpoints (kept for scripts and backwards compatibility);
+/// 2. `/rustvless.rpc.v1.WebAdmin/*` gRPC-Web requests from the browser;
+/// 3. everything else from `web_dir`, falling back to `index.html` for client
+///    side routes.
+///
+/// gRPC-Web is decoded by [`GrpcWebLayer`] before reaching the tonic service.
+/// The layer is applied only to the gRPC routes, so JSON and static requests
+/// are untouched.
 pub fn router(state: Arc<AppState>) -> Router {
     let web_dir = state.config.web_dir.clone();
-    let index = std::path::Path::new(&web_dir).join("index.html");
+    let index = Path::new(&web_dir).join("index.html");
+    let spa = ServeDir::new(&web_dir).fallback(ServeFile::new(index));
+
+    let grpc =
+        tonic::service::Routes::new(WebAdminServer::new(WebAdminService::new(state.clone())))
+            .into_axum_router()
+            .layer(GrpcWebLayer::new())
+            .fallback_service(spa);
 
     Router::new()
         .route("/api/auth/login", post(login))
@@ -143,12 +143,19 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/traffic", get(traffic))
         .route("/health", get(health))
         .with_state(state)
-        .fallback_service(ServeDir::new(&web_dir).fallback(ServeFile::new(index)))
+        .fallback_service(grpc)
         .layer(
+            // gRPC-Web clients read the status from response headers, so they
+            // must be explicitly exposed to cross-origin callers.
             CorsLayer::new()
                 .allow_origin(Any)
                 .allow_methods(Any)
-                .allow_headers(Any),
+                .allow_headers(Any)
+                .expose_headers([
+                    HeaderName::from_static("grpc-status"),
+                    HeaderName::from_static("grpc-message"),
+                    HeaderName::from_static("grpc-status-details-bin"),
+                ]),
         )
         .layer(TraceLayer::new_for_http())
 }
@@ -157,36 +164,10 @@ async fn login(
     State(state): State<Arc<AppState>>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, ApiError> {
-    let email = req.email.trim().to_lowercase();
-    let Some(admin) = state.db.find_admin_by_email(&email).await? else {
-        return Err(ApiError::Unauthorized);
-    };
-    let permit = state
-        .login_sem
-        .clone()
-        .try_acquire_owned()
-        .map_err(|_| ApiError::BadRequest("too many login attempts; retry later".into()))?;
-    let hash = admin.password_hash.clone();
-    let password = req.password;
-    let verified = tokio::task::spawn_blocking(move || {
-        let _permit = permit;
-        verify_password(&password, &hash)
-    })
-    .await
-    .map_err(|_| ApiError::Internal)?;
-    if !verified {
-        return Err(ApiError::Unauthorized);
-    }
-
-    let token = random_hex(32);
-    let expires_at = now_ms() + state.config.session_ttl_secs * 1000;
-    state
-        .db
-        .create_session(admin.id, &token, expires_at)
-        .await?;
+    let result = service::login(&state, &req.email, &req.password).await?;
     Ok(Json(LoginResponse {
-        token,
-        admin: AdminView::from(&admin),
+        token: result.token,
+        admin: result.admin,
     }))
 }
 
@@ -195,7 +176,7 @@ async fn logout(
     headers: HeaderMap,
 ) -> Result<Json<OkResponse>, ApiError> {
     if let Some(token) = bearer_token(&headers) {
-        state.db.delete_session(&token).await?;
+        service::logout(&state, &token).await?;
     }
     Ok(ok())
 }
@@ -204,7 +185,7 @@ async fn me(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<AdminView>, ApiError> {
-    let admin = current_admin(&state.db, &headers).await?;
+    let admin = session(&state, &headers).await?;
     Ok(Json(AdminView::from(&admin)))
 }
 
@@ -212,38 +193,16 @@ async fn stats(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<crate::db::StatsView>, ApiError> {
-    let admin = current_admin(&state.db, &headers).await?;
-    let mut stats = state.db.stats(scope(&admin)).await?;
-    stats.active_connections =
-        state.active_connections().await + state.dataplane.active_connections();
-    Ok(Json(stats))
+    let admin = session(&state, &headers).await?;
+    Ok(Json(service::stats(&state, &admin).await?))
 }
 
 async fn list_nodes(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<NodeView>>, ApiError> {
-    require_admin(&state.db, &headers).await?;
-    let nodes = state.db.list_nodes().await?;
-    let live = state.live_snapshot().await;
-    let views = nodes
-        .iter()
-        .map(|node| {
-            let mut view = NodeView::from(node);
-            if let Some(conn) = live.get(&node.id) {
-                view.status = "online".into();
-                view.version = conn.version.clone();
-                view.active_connections = conn.active_connections;
-                view.uptime_sec = if conn.uptime_sec > 0 {
-                    conn.uptime_sec
-                } else {
-                    ((now_ms() - conn.connected_at).max(0) / 1000) as u64
-                };
-            }
-            view
-        })
-        .collect();
-    Ok(Json(views))
+    admin_session(&state, &headers).await?;
+    Ok(Json(service::list_nodes(&state).await?))
 }
 
 async fn create_node(
@@ -251,32 +210,47 @@ async fn create_node(
     headers: HeaderMap,
     Json(req): Json<CreateNodeRequest>,
 ) -> Result<Json<CreateNodeResponse>, ApiError> {
-    require_admin(&state.db, &headers).await?;
-    let name = validate_name(&req.name)?;
-    let (node, token) = state.db.create_node(&name, false).await?;
-    Ok(Json(CreateNodeResponse {
-        node: NodeView::from(&node),
-        token,
-    }))
+    admin_session(&state, &headers).await?;
+    let (node, token) = service::create_node(&state, &req.name).await?;
+    Ok(Json(CreateNodeResponse { node, token }))
+}
+
+/// Partial node update: every field is optional and omitted fields keep their
+/// stored value, matching PATCH semantics.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateNodeRequest {
+    pub name: Option<String>,
+    pub http_url: Option<String>,
+    pub rpc_url: Option<String>,
+}
+
+async fn update_node(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    AxumPath(id): AxumPath<String>,
+    Json(req): Json<UpdateNodeRequest>,
+) -> Result<Json<NodeView>, ApiError> {
+    admin_session(&state, &headers).await?;
+    let id = parse_uuid(&id)?;
+    let node = service::update_node(
+        &state,
+        id,
+        req.name.as_deref(),
+        req.http_url.as_deref(),
+        req.rpc_url.as_deref(),
+    )
+    .await?;
+    Ok(Json(node))
 }
 
 async fn delete_node(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Path(id): Path<String>,
+    AxumPath(id): AxumPath<String>,
 ) -> Result<Json<OkResponse>, ApiError> {
-    require_admin(&state.db, &headers).await?;
-    let id = parse_uuid(&id)?;
-    if state.db.get_node(id).await?.map(|node| node.is_master) == Some(true) {
-        return Err(ApiError::BadRequest(
-            "the master node cannot be deleted".into(),
-        ));
-    }
-    if !state.db.delete_node(id).await? {
-        return Err(ApiError::NotFound);
-    }
-    state.set_offline(id).await;
-    state.publish_topology().await;
+    admin_session(&state, &headers).await?;
+    service::delete_node(&state, parse_uuid(&id)?).await?;
     Ok(ok())
 }
 
@@ -284,9 +258,8 @@ async fn list_users(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<ProxyUserView>>, ApiError> {
-    let admin = current_admin(&state.db, &headers).await?;
-    let users = state.db.list_proxy_users(scope(&admin)).await?;
-    Ok(Json(users.iter().map(ProxyUserView::from).collect()))
+    let admin = session(&state, &headers).await?;
+    Ok(Json(service::list_users(&state, &admin).await?))
 }
 
 async fn create_user(
@@ -294,63 +267,42 @@ async fn create_user(
     headers: HeaderMap,
     Json(req): Json<CreateUserRequest>,
 ) -> Result<Json<ProxyUserView>, ApiError> {
-    let admin = current_admin(&state.db, &headers).await?;
-    let name = validate_name(&req.name)?;
-    let owner_id = match (admin.role, req.owner_id.as_deref()) {
-        (Role::Admin, Some(raw)) => parse_uuid(raw)?,
-        _ => admin.id,
+    // Admin-only owner override; regular users create users they own.
+    let admin = session(&state, &headers).await?;
+    let owner_id = match req.owner_id.as_deref() {
+        Some(raw) if admin.role == Role::Admin => Some(parse_uuid(raw)?),
+        _ => None,
     };
-    let user = state.db.create_proxy_user(owner_id, &name).await?;
-    state.publish_config().await;
-    Ok(Json(ProxyUserView::from(&user)))
+    Ok(Json(
+        service::create_user(&state, &admin, &req.name, owner_id).await?,
+    ))
 }
 
 async fn update_user(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Path(id): Path<String>,
+    AxumPath(id): AxumPath<String>,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<ProxyUserView>, ApiError> {
-    let admin = current_admin(&state.db, &headers).await?;
-    let id = parse_uuid(&id)?;
-    let Some(user) = state.db.get_proxy_user(id).await? else {
-        return Err(ApiError::NotFound);
-    };
-    if admin.role != Role::Admin && user.owner_id != admin.id {
-        return Err(ApiError::Forbidden);
-    }
-    let name = match req.name {
-        Some(name) => Some(validate_name(&name)?),
-        None => None,
-    };
-    state
-        .db
-        .update_proxy_user(id, name.as_deref(), req.enabled)
-        .await?;
-    state.publish_config().await;
-    let updated = state
-        .db
-        .get_proxy_user(id)
-        .await?
-        .ok_or(ApiError::NotFound)?;
-    Ok(Json(ProxyUserView::from(&updated)))
+    let admin = session(&state, &headers).await?;
+    let updated = service::update_user(
+        &state,
+        &admin,
+        parse_uuid(&id)?,
+        req.name.as_deref(),
+        req.enabled,
+    )
+    .await?;
+    Ok(Json(updated))
 }
 
 async fn delete_user(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Path(id): Path<String>,
+    AxumPath(id): AxumPath<String>,
 ) -> Result<Json<OkResponse>, ApiError> {
-    let admin = current_admin(&state.db, &headers).await?;
-    let id = parse_uuid(&id)?;
-    let Some(user) = state.db.get_proxy_user(id).await? else {
-        return Err(ApiError::NotFound);
-    };
-    if admin.role != Role::Admin && user.owner_id != admin.id {
-        return Err(ApiError::Forbidden);
-    }
-    state.db.delete_proxy_user(id).await?;
-    state.publish_config().await;
+    let admin = session(&state, &headers).await?;
+    service::delete_user(&state, &admin, parse_uuid(&id)?).await?;
     Ok(ok())
 }
 
@@ -358,9 +310,8 @@ async fn list_admins(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<AdminView>>, ApiError> {
-    require_admin(&state.db, &headers).await?;
-    let admins = state.db.list_admins().await?;
-    Ok(Json(admins.iter().map(AdminView::from).collect()))
+    admin_session(&state, &headers).await?;
+    Ok(Json(service::list_admins(&state).await?))
 }
 
 async fn create_admin(
@@ -368,42 +319,28 @@ async fn create_admin(
     headers: HeaderMap,
     Json(req): Json<CreateAdminRequest>,
 ) -> Result<Json<AdminView>, ApiError> {
-    require_admin(&state.db, &headers).await?;
-    let email = validate_email(&req.email)?;
-    validate_password(&req.password)?;
-    let role = req.role.unwrap_or(Role::User);
-    let hash = hash_password(&req.password)?;
-    let admin = state.db.create_admin(&email, &hash, role).await?;
-    Ok(Json(AdminView::from(&admin)))
+    admin_session(&state, &headers).await?;
+    Ok(Json(
+        service::create_admin(&state, &req.email, &req.password, req.role).await?,
+    ))
 }
 
 async fn delete_admin(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Path(id): Path<String>,
+    AxumPath(id): AxumPath<String>,
 ) -> Result<Json<OkResponse>, ApiError> {
-    let current = require_admin(&state.db, &headers).await?;
-    let id = parse_uuid(&id)?;
-    if current.id == id {
-        return Err(ApiError::BadRequest("cannot delete yourself".into()));
-    }
-    match state.db.delete_admin_checked(id).await? {
-        DeleteAdminOutcome::Deleted => {}
-        DeleteAdminOutcome::NotFound => return Err(ApiError::NotFound),
-        DeleteAdminOutcome::LastAdmin => {
-            return Err(ApiError::BadRequest("cannot delete the last admin".into()))
-        }
-    }
-    state.publish_config().await;
+    let current = admin_session(&state, &headers).await?;
+    service::delete_admin(&state, &current, parse_uuid(&id)?).await?;
     Ok(ok())
 }
 
 async fn traffic(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-) -> Result<Json<Vec<TrafficRow>>, ApiError> {
-    let admin = current_admin(&state.db, &headers).await?;
-    Ok(Json(state.db.traffic_overview(scope(&admin)).await?))
+) -> Result<Json<Vec<crate::db::TrafficRow>>, ApiError> {
+    let admin = session(&state, &headers).await?;
+    Ok(Json(service::traffic_overview(&state, &admin).await?))
 }
 
 async fn master_ws(
@@ -424,43 +361,6 @@ async fn health() -> Json<serde_json::Value> {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct UpdateNodeRequest {
-    pub name: Option<String>,
-    pub http_url: Option<String>,
-    pub rpc_url: Option<String>,
-}
-
-async fn update_node(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Path(id): Path<String>,
-    Json(req): Json<UpdateNodeRequest>,
-) -> Result<Json<NodeView>, ApiError> {
-    require_admin(&state.db, &headers).await?;
-    let id = parse_uuid(&id)?;
-    if state.db.get_node(id).await?.is_none() {
-        return Err(ApiError::NotFound);
-    }
-    let name = match req.name {
-        Some(name) => Some(validate_name(&name)?),
-        None => None,
-    };
-    state
-        .db
-        .update_node(
-            id,
-            name.as_deref(),
-            req.http_url.as_deref(),
-            req.rpc_url.as_deref(),
-        )
-        .await?;
-    state.publish_topology().await;
-    let node = state.db.get_node(id).await?.ok_or(ApiError::NotFound)?;
-    Ok(Json(NodeView::from(&node)))
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateLinkRequest {
     pub from_node_id: String,
     pub to_node_id: String,
@@ -472,9 +372,8 @@ async fn list_links(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<LinkView>>, ApiError> {
-    require_admin(&state.db, &headers).await?;
-    let links = state.db.list_links().await?;
-    Ok(Json(links.iter().map(LinkView::from).collect()))
+    admin_session(&state, &headers).await?;
+    Ok(Json(service::list_links(&state).await?))
 }
 
 async fn create_link(
@@ -482,63 +381,34 @@ async fn create_link(
     headers: HeaderMap,
     Json(req): Json<CreateLinkRequest>,
 ) -> Result<Json<LinkView>, ApiError> {
-    require_admin(&state.db, &headers).await?;
-    let from = parse_uuid(&req.from_node_id)?;
-    let to = parse_uuid(&req.to_node_id)?;
-    let transport = req.transport.unwrap_or_else(|| "rpc".into());
-    let link = state
-        .db
-        .create_link(from, to, &transport, req.priority.unwrap_or(0))
-        .await?;
-    state.publish_topology().await;
-    Ok(Json(LinkView::from(&link)))
+    admin_session(&state, &headers).await?;
+    let link = service::create_link(
+        &state,
+        parse_uuid(&req.from_node_id)?,
+        parse_uuid(&req.to_node_id)?,
+        req.transport.as_deref().unwrap_or("rpc"),
+        req.priority.unwrap_or(0),
+    )
+    .await?;
+    Ok(Json(link))
 }
 
 async fn delete_link(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Path(id): Path<String>,
+    AxumPath(id): AxumPath<String>,
 ) -> Result<Json<OkResponse>, ApiError> {
-    require_admin(&state.db, &headers).await?;
-    let id = parse_uuid(&id)?;
-    if !state.db.delete_link(id).await? {
-        return Err(ApiError::NotFound);
-    }
-    state.publish_topology().await;
+    admin_session(&state, &headers).await?;
+    service::delete_link(&state, parse_uuid(&id)?).await?;
     Ok(ok())
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TopologyResponse {
-    pub nodes: Vec<NodeView>,
-    pub links: Vec<LinkView>,
 }
 
 async fn topology(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<TopologyResponse>, ApiError> {
-    require_admin(&state.db, &headers).await?;
-    let nodes = state.db.list_nodes().await?;
-    let live = state.live_snapshot().await;
-    let nodes = nodes
-        .iter()
-        .map(|node| {
-            let mut view = NodeView::from(node);
-            if let Some(conn) = live.get(&node.id) {
-                view.status = "online".into();
-                view.active_connections = conn.active_connections;
-                view.uptime_sec = conn.uptime_sec;
-            }
-            view
-        })
-        .collect();
-    let links = state.db.list_links().await?;
-    Ok(Json(TopologyResponse {
-        nodes,
-        links: links.iter().map(LinkView::from).collect(),
-    }))
+    admin_session(&state, &headers).await?;
+    Ok(Json(service::topology(&state).await?))
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -559,23 +429,22 @@ async fn access_logs(
     headers: HeaderMap,
     Query(query): Query<AccessLogsQuery>,
 ) -> Result<Json<AccessLogPage>, ApiError> {
-    let admin = current_admin(&state.db, &headers).await?;
-    let page = state
-        .db
-        .query_access_logs(
-            scope(&admin),
-            &AccessLogQuery {
-                user_id: query.user_id,
-                node_id: query.node_id,
-                status: query.status,
-                target: query.target,
-                from: query.from,
-                to: query.to,
-                limit: query.limit.unwrap_or(50),
-                offset: query.offset.unwrap_or(0),
-            },
-        )
-        .await?;
+    let admin = session(&state, &headers).await?;
+    let page = service::access_logs(
+        &state,
+        &admin,
+        AccessLogQuery {
+            user_id: query.user_id,
+            node_id: query.node_id,
+            status: query.status,
+            target: query.target,
+            from: query.from,
+            to: query.to,
+            limit: query.limit.unwrap_or(0),
+            offset: query.offset.unwrap_or(0),
+        },
+    )
+    .await?;
     Ok(Json(page))
 }
 
@@ -589,18 +458,10 @@ async fn traffic_topology(
     headers: HeaderMap,
     Query(query): Query<TrafficTopologyQuery>,
 ) -> Result<Json<crate::db::TrafficTopology>, ApiError> {
-    let admin = current_admin(&state.db, &headers).await?;
-    let window = query.window.unwrap_or(3600).clamp(60, 604_800);
-    let live = state.live_snapshot().await;
-    let mut topology = state.db.traffic_topology(window, &live).await?;
-    if admin.role != Role::Admin {
-        for link in &mut topology.links {
-            link.up_bytes = 0;
-            link.down_bytes = 0;
-            link.sessions = 0;
-        }
-    }
-    Ok(Json(topology))
+    let admin = session(&state, &headers).await?;
+    Ok(Json(
+        service::traffic_topology(&state, &admin, query.window).await?,
+    ))
 }
 
 #[cfg(test)]
@@ -820,5 +681,108 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    }
+
+    #[tokio::test]
+    async fn access_logs_limit_is_clamped() {
+        let (app, token) = app().await;
+        let (status, page) = call(
+            &app,
+            Method::GET,
+            "/api/access-logs?limit=100000",
+            Some(&token),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(page["limit"], service::MAX_ACCESS_LOG_LIMIT);
+        assert_eq!(page["offset"], 0);
+    }
+
+    /// Sends a real gRPC-Web framed request through the axum router to prove
+    /// the layer, path mount, and trailing status headers are wired correctly.
+    /// A unit test on the service alone would not catch a broken transport.
+    #[tokio::test]
+    async fn grpc_web_login_is_served_on_http_port() {
+        use prost::Message;
+
+        let (app, _) = app().await;
+        let message = rust_vless_proto::LoginRequest {
+            email: "admin@example.com".into(),
+            password: "password123".into(),
+        };
+        let response = grpc_web_call(&app, "Login", &message).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let (status, payload) = read_grpc_web(response).await;
+        assert_eq!(status.as_deref(), Some("0"), "unexpected status {status:?}");
+        let login = rust_vless_proto::LoginResponse::decode(payload.as_slice()).unwrap();
+        assert!(!login.token.is_empty());
+        assert_eq!(login.admin.unwrap().email, "admin@example.com");
+
+        // A call without metadata must fail with UNAUTHENTICATED (16) instead
+        // of reaching the handler.
+        let nodes: rust_vless_proto::Empty = Default::default();
+        let response = grpc_web_call(&app, "ListNodes", &nodes).await;
+        let (status, _) = read_grpc_web(response).await;
+        assert_eq!(status.as_deref(), Some("16"));
+    }
+
+    /// Parse a gRPC-Web response: message frames are flag 0x00, the trailer
+    /// frame is flag 0x80 and carries `grpc-status`. Trailers-only responses
+    /// may carry the status in the HTTP headers instead.
+    async fn read_grpc_web(response: axum::response::Response) -> (Option<String>, Vec<u8>) {
+        let header_status = response
+            .headers()
+            .get("grpc-status")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let mut status = header_status;
+        let mut message = Vec::new();
+        let mut offset = 0;
+        while offset + 5 <= bytes.len() {
+            let flags = bytes[offset];
+            let len =
+                u32::from_be_bytes(bytes[offset + 1..offset + 5].try_into().unwrap()) as usize;
+            let end = offset + 5 + len;
+            assert!(end <= bytes.len(), "truncated grpc-web frame");
+            let payload = &bytes[offset + 5..end];
+            if flags & 0x80 != 0 {
+                for line in String::from_utf8_lossy(payload).lines() {
+                    if let Some(value) = line.strip_prefix("grpc-status:") {
+                        status = Some(value.trim().to_string());
+                    }
+                }
+            } else {
+                message = payload.to_vec();
+            }
+            offset = end;
+        }
+        (status, message)
+    }
+
+    /// Encode one unary message as a gRPC-Web request and send it through the
+    /// router without a listening socket.
+    async fn grpc_web_call<M: prost::Message>(
+        app: &Router,
+        method: &str,
+        message: &M,
+    ) -> axum::response::Response {
+        let mut frame = Vec::with_capacity(message.encoded_len() + 5);
+        frame.push(0);
+        frame.extend_from_slice(&(message.encoded_len() as u32).to_be_bytes());
+        message.encode(&mut frame).unwrap();
+        app.clone()
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri(format!("/rustvless.rpc.v1.WebAdmin/{method}"))
+                    .header("content-type", "application/grpc-web+proto")
+                    .header("x-grpc-web", "1")
+                    .body(Body::from(frame))
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
     }
 }

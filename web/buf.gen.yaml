@@ -1,0 +1,13 @@
+version: v2
+# 修改 ../../proto/rpc.proto 后执行 `bun run proto` 重新生成。
+clean: true
+plugins:
+  - local: protoc-gen-es
+    out: src/gen
+    opt:
+      - target=ts
+      # Vite 与 tsc（moduleResolution: bundler）会解析无扩展名导入；
+      # 生成 ".js" 会指向源码中不存在的文件。
+      - import_extension=none
+inputs:
+  - directory: ../proto

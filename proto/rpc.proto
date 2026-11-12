@@ -148,3 +148,294 @@ message RelayHello {
 message RelayReady {
   repeated string path = 1;
 }
+
+// ---------------------------------------------------------------------------
+// Web admin RPC
+//
+// The browser console talks to the master over gRPC-Web (Connect protocol
+// wire format). Everything the React app needs is exposed here so the web
+// client no longer depends on the JSON REST surface. The REST endpoints stay
+// available for scripts, but both surfaces share the same service layer so
+// behaviour cannot drift.
+//
+// Auth: every method except Login requires the session token in the
+// `authorization: Bearer <token>` metadata. The token is the same one issued
+// by Login and is never sent in a message body.
+// ---------------------------------------------------------------------------
+service WebAdmin {
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Logout(Empty) returns (Empty);
+  rpc Me(Empty) returns (AdminView);
+  rpc GetStats(Empty) returns (StatsView);
+
+  rpc ListNodes(Empty) returns (NodeList);
+  rpc CreateNode(CreateNodeRequest) returns (CreateNodeResponse);
+  rpc UpdateNode(UpdateNodeRequest) returns (NodeView);
+  rpc DeleteNode(DeleteNodeRequest) returns (Empty);
+
+  rpc ListUsers(Empty) returns (UserList);
+  rpc CreateUser(CreateUserRequest) returns (ProxyUserView);
+  rpc UpdateUser(UpdateUserRequest) returns (ProxyUserView);
+  rpc DeleteUser(DeleteUserRequest) returns (Empty);
+
+  rpc ListAdmins(Empty) returns (AdminList);
+  rpc CreateAdmin(CreateAdminRequest) returns (AdminView);
+  rpc DeleteAdmin(DeleteAdminRequest) returns (Empty);
+
+  rpc ListLinks(Empty) returns (LinkList);
+  rpc CreateLink(CreateLinkRequest) returns (LinkView);
+  rpc DeleteLink(DeleteLinkRequest) returns (Empty);
+  rpc GetTopology(Empty) returns (TopologyResponse);
+
+  rpc ListAccessLogs(AccessLogsRequest) returns (AccessLogPage);
+  rpc GetTrafficTopology(TrafficTopologyRequest) returns (TrafficTopologyView);
+  rpc GetTrafficOverview(Empty) returns (TrafficOverview);
+}
+
+// Empty is used by methods that have no request or response payload.
+message Empty {}
+
+// WebRole mirrors the two account levels of the control plane.
+enum WebRole {
+  WEB_ROLE_UNSPECIFIED = 0;
+  WEB_ROLE_ADMIN = 1;
+  WEB_ROLE_USER = 2;
+}
+
+// LinkTransport selects how a relay hop reaches the next node.
+enum LinkTransport {
+  LINK_TRANSPORT_UNSPECIFIED = 0;
+  LINK_TRANSPORT_RPC = 1;
+  LINK_TRANSPORT_HTTP = 2;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string token = 1;
+  AdminView admin = 2;
+}
+
+message AdminView {
+  string id = 1;
+  string email = 2;
+  WebRole role = 3;
+  // Unix epoch milliseconds.
+  int64 created_at = 4;
+}
+
+message AdminList {
+  repeated AdminView admins = 1;
+}
+
+message StatsView {
+  int64 nodes_total = 1;
+  int64 nodes_online = 2;
+  int64 users_total = 3;
+  int64 users_enabled = 4;
+  int64 admins_total = 5;
+  uint64 up_bytes = 6;
+  uint64 down_bytes = 7;
+  uint64 active_connections = 8;
+  int64 links_total = 9;
+}
+
+message NodeView {
+  string id = 1;
+  string name = 2;
+  // "online" or "offline"; derived from the live control stream.
+  string status = 3;
+  string version = 4;
+  string http_url = 5;
+  string rpc_url = 6;
+  bool is_master = 7;
+  // Unix epoch milliseconds.
+  int64 last_seen = 8;
+  int64 created_at = 9;
+  uint64 active_connections = 10;
+  uint64 uptime_sec = 11;
+}
+
+message NodeList {
+  repeated NodeView nodes = 1;
+}
+
+message CreateNodeRequest {
+  string name = 1;
+}
+
+message CreateNodeResponse {
+  NodeView node = 1;
+  // One-time node token; it is never readable again after this response.
+  string token = 2;
+}
+
+// UpdateNodeRequest uses optional fields so callers can patch a subset of
+// columns, matching the REST PATCH semantics.
+message UpdateNodeRequest {
+  string id = 1;
+  optional string name = 2;
+  optional string http_url = 3;
+  optional string rpc_url = 4;
+}
+
+message DeleteNodeRequest {
+  string id = 1;
+}
+
+message ProxyUserView {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  string owner_id = 4;
+  string owner_email = 5;
+  int64 created_at = 6;
+  uint64 up_bytes = 7;
+  uint64 down_bytes = 8;
+}
+
+message UserList {
+  repeated ProxyUserView users = 1;
+}
+
+message CreateUserRequest {
+  string name = 1;
+  // Only honoured for admin callers; regular users always own their users.
+  optional string owner_id = 2;
+}
+
+message UpdateUserRequest {
+  string id = 1;
+  optional string name = 2;
+  optional bool enabled = 3;
+}
+
+message DeleteUserRequest {
+  string id = 1;
+}
+
+message CreateAdminRequest {
+  string email = 1;
+  string password = 2;
+  // Defaults to WEB_ROLE_USER when unset.
+  optional WebRole role = 3;
+}
+
+message DeleteAdminRequest {
+  string id = 1;
+}
+
+message LinkView {
+  string id = 1;
+  string from_node_id = 2;
+  string to_node_id = 3;
+  string from_name = 4;
+  string to_name = 5;
+  LinkTransport transport = 6;
+  int64 priority = 7;
+  bool enabled = 8;
+  int64 created_at = 9;
+}
+
+message LinkList {
+  repeated LinkView links = 1;
+}
+
+message CreateLinkRequest {
+  string from_node_id = 1;
+  string to_node_id = 2;
+  // Defaults to LINK_TRANSPORT_RPC when unspecified.
+  LinkTransport transport = 3;
+  int64 priority = 4;
+}
+
+message DeleteLinkRequest {
+  string id = 1;
+}
+
+message TopologyResponse {
+  repeated NodeView nodes = 1;
+  repeated LinkView links = 2;
+}
+
+// AccessLogsRequest filters the access log page. All filters are ANDed;
+// unset fields are ignored.
+message AccessLogsRequest {
+  optional string user_id = 1;
+  optional string node_id = 2;
+  optional string status = 3;
+  optional string target = 4;
+  optional int64 from = 5;
+  optional int64 to = 6;
+  optional int64 limit = 7;
+  optional int64 offset = 8;
+}
+
+message AccessLogView {
+  int64 id = 1;
+  string session_id = 2;
+  string user_id = 3;
+  string entry_node_id = 4;
+  string target = 5;
+  string command = 6;
+  int64 started_at = 7;
+  int64 ended_at = 8;
+  int64 duration_ms = 9;
+  uint64 up_bytes = 10;
+  uint64 down_bytes = 11;
+  string status = 12;
+  string error = 13;
+  repeated string path = 14;
+  string client_addr = 15;
+}
+
+message AccessLogPage {
+  repeated AccessLogView items = 1;
+  int64 total = 2;
+  int64 limit = 3;
+  int64 offset = 4;
+}
+
+message TrafficTopologyRequest {
+  // Window size in seconds; clamped server-side to [60, 604800].
+  optional int64 window = 1;
+}
+
+message TopologyNodeView {
+  string id = 1;
+  string name = 2;
+  bool is_master = 3;
+  bool online = 4;
+  uint64 active_connections = 5;
+}
+
+message TopologyLinkView {
+  string id = 1;
+  string from_node_id = 2;
+  string to_node_id = 3;
+  LinkTransport transport = 4;
+  uint64 up_bytes = 5;
+  uint64 down_bytes = 6;
+  uint64 sessions = 7;
+}
+
+message TrafficTopologyView {
+  int64 window_sec = 1;
+  repeated TopologyNodeView nodes = 2;
+  repeated TopologyLinkView links = 3;
+}
+
+message TrafficRow {
+  string user_id = 1;
+  string name = 2;
+  string owner_email = 3;
+  uint64 up_bytes = 4;
+  uint64 down_bytes = 5;
+}
+
+message TrafficOverview {
+  repeated TrafficRow rows = 1;
+}

@@ -11,14 +11,14 @@ Rust 版 VLESS over WebSocket 代理服务，包含主节点（控制面）与�
 - **本地 Turso SQLite**：数据库文件默认 `master.db`，不依赖外部服务。
 - **访问记录**：每次代理连接记录用户、入口节点、目标、字节数、耗时、状态和实际路径。
 - **流量拓扑图**：`/traffic` 页面展示节点间窗口流量、会话数与访问记录。
-- **前端**：Vite + React + TanStack Router + shadcn UI + `@xyflow/react`。
+- **前端**：Vite + React + TanStack Router + HeroUI v3 + `@xyflow/react`；浏览器通过 gRPC-Web 调用主节点。
 
 ## 架构
 
 ```text
-浏览器 ──HTTP──▶ Master
-                 HTTP: Web UI / API / VLESS WS / health
-                 RPC : NodeControl + Relay
+浏览器 ──gRPC-Web──▶ Master
+                 HTTP: Web UI / JSON API / VLESS WS / health
+                 RPC : WebAdmin（gRPC-Web）+ NodeControl + Relay
                  Turso SQLite (master.db)
                  ├── 控制 RPC（节点主动拨号）
                  └── 中转 RPC / HTTP（按连线）
@@ -40,7 +40,7 @@ rust-vless/
 ├── crates/dataplane            # 共享数据面、中转、访问记录
 ├── crates/master               # 主节点
 ├── crates/node                 # 子节点
-├── web                         # TanStack Router + shadcn 前端
+├── web                         # TanStack Router + HeroUI + Connect gRPC-Web
 └── docs                        # 设计文档
 ```
 
@@ -53,8 +53,8 @@ cd rust-vless
 cargo build --release -p rust-vless-master -p rust-vless-node
 
 cd web
-npm install
-npm run build
+bun install
+bun run build
 cd ..
 ```
 
@@ -150,7 +150,16 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
 cd web
-npm run build
+bun install
+bun run test
+bun run build
+```
+
+修改 `proto/rpc.proto` 后重新生成前端类型：
+
+```bash
+cd web
+bun run proto   # buf generate -> src/gen/rpc_pb.ts
 ```
 
 已覆盖：
@@ -159,7 +168,15 @@ npm run build
 - 用户注册表替换与计数
 - Turso 数据层：管理员/会话/节点/连线/用户/访问记录/连线流量
 - HTTP API：登录、鉴权、节点、用户、连线、成环拒绝
+- WebAdmin RPC：gRPC-Web 请求/响应帧、Bearer 鉴权、权限分级、分页边界
+- 前端：RPC 消息映射（bigint→number、枚举→字符串）、错误归一化与 401 跳转、登录表单交互
 - 端到端（手动）：直连、RPC 中转、HTTP 中转、多跳、主节点入口、成环拒绝、访问记录路径、流量拓扑
+- Web RPC 冒烟（对运行中的主节点）：
+  ```bash
+  cd web
+  export ADMIN_PASSWORD='your-admin-password'
+  bun scripts/smoke.ts http://127.0.0.1:8080 "$ADMIN_PASSWORD"
+  ```
 
 ## 安全说明
 
@@ -174,14 +191,14 @@ npm run build
 - 未集成 Cloudflare/Argo 隧道；节点需要可被客户端/其他节点访问的地址。
 - 访问记录与用户流量只由入口节点统计；中转节点只上报连线流量。
 - 控制面断线瞬间，已进入节点本地队列但尚未送达主节点的少量访问记录/流量可能丢失；缓冲区会跨重连保留。
-- 前端构建产物约 620KB（未做路由级拆包）。
+- 前端构建产物约 1MB（HeroUI + React Aria + 拓扑图库，未做路由级拆包）。
 
 ## CodeRabbit
 
-每个模块完成后使用：
+每次改动完成后、提交前必须审查（规则见 `AGENTS.md`）：
 
 ```bash
-coderabbit review --agent
+coderabbit review --uncommitted --include-untracked --base main
 ```
 
-按 P0/P1 优先修复评审意见。
+按 critical/major 优先修复评审意见；未能执行审查时登记到 `REVIEW_BACKLOG.md`。

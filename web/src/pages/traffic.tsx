@@ -1,4 +1,16 @@
 import {
+  Button,
+  Card,
+  Chip,
+  Input,
+  Label,
+  ListBox,
+  Modal,
+  Select,
+  Separator,
+  Table,
+} from '@heroui/react'
+import {
   Background,
   Controls,
   MarkerType,
@@ -9,29 +21,9 @@ import {
 import { Filter, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { api } from '@/lib/api'
 import { formatBytes, formatRelative, formatTime } from '@/lib/format'
-import type {
-  AccessLogPage,
-  AccessLogView,
-  ProxyUserView,
-  TrafficTopology,
-} from '@/lib/types'
+import { accessLogs, listUsers, trafficTopology } from '@/lib/rpc'
+import type { AccessLogPage, AccessLogView, ProxyUserView, TrafficTopology } from '@/lib/types'
 
 const WINDOWS = [
   { label: '1 小时', value: 3600 },
@@ -39,15 +31,21 @@ const WINDOWS = [
   { label: '7 天', value: 604800 },
 ]
 
+/** React Aria selects cannot use an empty key, so "all" gets an explicit sentinel. */
+const ALL = '__all__'
+const ALL_ITEMS = [{ id: ALL, label: '全部' }] as const
+
 const nodeStyle = {
-  background: 'hsl(var(--card))',
-  color: 'hsl(var(--foreground))',
-  border: '1px solid hsl(var(--border))',
+  background: 'var(--surface)',
+  color: 'var(--foreground)',
+  border: '1px solid var(--border)',
   borderRadius: 10,
   width: 180,
   fontSize: 12,
   padding: 4,
 } satisfies React.CSSProperties
+
+const STATUSES = ['ok', 'error', 'denied', 'timeout'] as const
 
 export function TrafficPage() {
   const [windowSec, setWindowSec] = useState(3600)
@@ -58,9 +56,9 @@ export function TrafficPage() {
   const [loading, setLoading] = useState(false)
   const [refresh, setRefresh] = useState(0)
 
-  const [userId, setUserId] = useState('')
-  const [nodeId, setNodeId] = useState('')
-  const [status, setStatus] = useState('')
+  const [userId, setUserId] = useState(ALL)
+  const [nodeId, setNodeId] = useState(ALL)
+  const [status, setStatus] = useState(ALL)
   const [targetInput, setTargetInput] = useState('')
   const [target, setTarget] = useState('')
   const [offset, setOffset] = useState(0)
@@ -68,7 +66,7 @@ export function TrafficPage() {
 
   const loadTopology = useCallback(async () => {
     try {
-      setTopology(await api<TrafficTopology>(`/api/traffic/topology?window=${windowSec}`))
+      setTopology(await trafficTopology(windowSec))
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '加载拓扑失败')
     }
@@ -77,14 +75,16 @@ export function TrafficPage() {
   const loadLogs = useCallback(async () => {
     setLoading(true)
     try {
-      const query = new URLSearchParams()
-      if (userId) query.set('userId', userId)
-      if (nodeId) query.set('nodeId', nodeId)
-      if (status) query.set('status', status)
-      if (target) query.set('target', target)
-      query.set('limit', String(limit))
-      query.set('offset', String(offset))
-      setLogs(await api<AccessLogPage>(`/api/access-logs?${query.toString()}`))
+      setLogs(
+        await accessLogs({
+          userId: userId === ALL ? undefined : userId,
+          nodeId: nodeId === ALL ? undefined : nodeId,
+          status: status === ALL ? undefined : status,
+          target: target || undefined,
+          limit,
+          offset,
+        }),
+      )
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '加载访问记录失败')
     } finally {
@@ -101,7 +101,7 @@ export function TrafficPage() {
   }, [loadLogs, refresh])
 
   useEffect(() => {
-    void api<ProxyUserView[]>('/api/users')
+    void listUsers()
       .then(setUsers)
       .catch(() => setUsers([]))
   }, [])
@@ -112,7 +112,7 @@ export function TrafficPage() {
         id: node.id,
         position: { x: (index % 3) * 290, y: Math.floor(index / 3) * 170 },
         data: {
-          label: `${node.name}${node.isMaster && node.name.toLowerCase() !== 'master' ? ' · master' : ''}${node.online ? '' : ' · offline'}`, 
+          label: `${node.name}${node.isMaster && node.name.toLowerCase() !== 'master' ? ' · master' : ''}${node.online ? '' : ' · offline'}`,
         },
         style: {
           ...nodeStyle,
@@ -134,10 +134,10 @@ export function TrafficPage() {
           markerEnd: { type: MarkerType.ArrowClosed },
           animated: link.sessions > 0,
           style: {
-            stroke: 'hsl(160 84% 39%)',
+            stroke: 'oklch(0.6204 0.195 253.83)',
             strokeWidth: Math.min(6, 1 + Math.log10(total + 1)),
           },
-          labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 11 },
+          labelStyle: { fill: 'var(--muted)', fontSize: 11 },
         } satisfies Edge
       }),
     [topology?.links],
@@ -157,24 +157,58 @@ export function TrafficPage() {
     topology?.links.reduce((sum, link) => sum + link.upBytes + link.downBytes, 0) ?? 0
   const totalSessions = topology?.links.reduce((sum, link) => sum + link.sessions, 0) ?? 0
 
+  const userItems = [
+    ...ALL_ITEMS,
+    ...users.map((user) => ({ id: user.id, label: user.name })),
+  ]
+  const nodeItems = [
+    ...ALL_ITEMS,
+    ...(topology?.nodes ?? []).map((node) => ({ id: node.id, label: node.name })),
+  ]
+  const statusItems = [
+    ...ALL_ITEMS,
+    ...STATUSES.map((value) => ({ id: value, label: value })),
+  ]
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">流量</h1>
-          <p className="text-sm text-muted-foreground">节点间流量拓扑与代理用户访问记录</p>
+          <p className="text-sm text-muted">节点间流量拓扑与代理用户访问记录</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* React Aria 的受控 API 是 selectedKey/onSelectionChange（已在浏览器
+              验证回显与查询会更新），不要按旧版文档改成 value/onChange。 */}
           <Select
-            className="w-32"
-            value={String(windowSec)}
-            onChange={(event) => setWindowSec(Number(event.target.value))}
+            aria-label="统计窗口"
+            className="w-40"
+            selectedKey={String(windowSec)}
+            onSelectionChange={(key) => setWindowSec(Number(key))}
           >
-            {WINDOWS.map((item) => (
-              <option key={item.value} value={item.value}>{item.label}</option>
-            ))}
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                {WINDOWS.map((item) => (
+                  <ListBox.Item key={item.value} id={String(item.value)} textValue={item.label}>
+                    {item.label}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
           </Select>
-          <Button variant="outline" className="gap-1" onClick={() => { void loadTopology(); setRefresh((value) => value + 1) }}>
+          <Button
+            variant="outline"
+            className="gap-1"
+            onPress={() => {
+              void loadTopology()
+              setRefresh((value) => value + 1)
+            }}
+          >
             <RefreshCw className="h-4 w-4" /> 刷新
           </Button>
         </div>
@@ -182,34 +216,38 @@ export function TrafficPage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">窗口流量</CardTitle>
-          </CardHeader>
-          <CardContent><div className="text-2xl font-semibold">{formatBytes(totalBytes)}</div></CardContent>
+          <Card.Header className="pb-2">
+            <Card.Title className="text-sm font-medium text-muted">窗口流量</Card.Title>
+          </Card.Header>
+          <Card.Content>
+            <div className="text-2xl font-semibold">{formatBytes(totalBytes)}</div>
+          </Card.Content>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">中转会话</CardTitle>
-          </CardHeader>
-          <CardContent><div className="text-2xl font-semibold">{totalSessions}</div></CardContent>
+          <Card.Header className="pb-2">
+            <Card.Title className="text-sm font-medium text-muted">中转会话</Card.Title>
+          </Card.Header>
+          <Card.Content>
+            <div className="text-2xl font-semibold">{totalSessions}</div>
+          </Card.Content>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">拓扑节点</CardTitle>
-          </CardHeader>
-          <CardContent>
+          <Card.Header className="pb-2">
+            <Card.Title className="text-sm font-medium text-muted">拓扑节点</Card.Title>
+          </Card.Header>
+          <Card.Content>
             <div className="text-2xl font-semibold">{topology?.nodes.length ?? 0}</div>
-            <p className="text-xs text-muted-foreground">{topology?.links.length ?? 0} 条连线</p>
-          </CardContent>
+            <p className="text-xs text-muted">{topology?.links.length ?? 0} 条连线</p>
+          </Card.Content>
         </Card>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">流量拓扑图</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[460px] w-full overflow-hidden rounded-lg border bg-background">
+        <Card.Header>
+          <Card.Title className="text-base">流量拓扑图</Card.Title>
+        </Card.Header>
+        <Card.Content>
+          <div className="h-[460px] w-full overflow-hidden rounded-lg border border-border bg-background">
             <ReactFlow
               key={windowSec}
               nodes={nodes}
@@ -225,48 +263,104 @@ export function TrafficPage() {
               <Controls showInteractive={false} />
             </ReactFlow>
           </div>
-        </CardContent>
+        </Card.Content>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">访问记录</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <Card.Header>
+          <Card.Title className="text-base">访问记录</Card.Title>
+        </Card.Header>
+        <Card.Content className="space-y-4">
           <div className="grid gap-3 md:grid-cols-5">
             <div className="space-y-1">
-              <Label className="text-xs">用户</Label>
-              <Select value={userId} onChange={(event) => { setOffset(0); setUserId(event.target.value) }}>
-                <option value="">全部</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>{user.name}</option>
-                ))}
+              <Select
+                aria-label="用户"
+                selectedKey={userId}
+                onSelectionChange={(key) => {
+                  setOffset(0)
+                  setUserId(key as string)
+                }}
+              >
+                <Label className="text-xs">用户</Label>
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {userItems.map((item) => (
+                      <ListBox.Item key={item.id} id={item.id} textValue={item.label}>
+                        {item.label}
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">入口节点</Label>
-              <Select value={nodeId} onChange={(event) => { setOffset(0); setNodeId(event.target.value) }}>
-                <option value="">全部</option>
-                {(topology?.nodes ?? []).map((node) => (
-                  <option key={node.id} value={node.id}>{node.name}</option>
-                ))}
+              <Select
+                aria-label="入口节点"
+                selectedKey={nodeId}
+                onSelectionChange={(key) => {
+                  setOffset(0)
+                  setNodeId(key as string)
+                }}
+              >
+                <Label className="text-xs">入口节点</Label>
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {nodeItems.map((item) => (
+                      <ListBox.Item key={item.id} id={item.id} textValue={item.label}>
+                        {item.label}
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">状态</Label>
-              <Select value={status} onChange={(event) => { setOffset(0); setStatus(event.target.value) }}>
-                <option value="">全部</option>
-                <option value="ok">ok</option>
-                <option value="error">error</option>
-                <option value="denied">denied</option>
-                <option value="timeout">timeout</option>
+              <Select
+                aria-label="状态"
+                selectedKey={status}
+                onSelectionChange={(key) => {
+                  setOffset(0)
+                  setStatus(key as string)
+                }}
+              >
+                <Label className="text-xs">状态</Label>
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {statusItems.map((item) => (
+                      <ListBox.Item key={item.id} id={item.id} textValue={item.label}>
+                        {item.label}
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
               </Select>
             </div>
             <div className="space-y-1 md:col-span-2">
               <Label className="text-xs">目标关键字</Label>
               <div className="flex gap-2">
-                <Input value={targetInput} onChange={(event) => setTargetInput(event.target.value)} placeholder="example.com:443" />
-                <Button variant="outline" className="shrink-0 gap-1" onClick={applyFilters}>
+                <Input variant="secondary"
+                  aria-label="目标关键字"
+                  className="flex-1"
+                  value={targetInput}
+                  onChange={(event) => setTargetInput(event.target.value)}
+                  placeholder="example.com:443"
+                />
+                <Button variant="outline" className="shrink-0 gap-1" onPress={applyFilters}>
                   <Filter className="h-4 w-4" /> 筛选
                 </Button>
               </div>
@@ -276,123 +370,181 @@ export function TrafficPage() {
           <Separator />
 
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>时间</TableHead>
-                <TableHead>用户</TableHead>
-                <TableHead>入口节点</TableHead>
-                <TableHead>目标</TableHead>
-                <TableHead>协议</TableHead>
-                <TableHead>耗时</TableHead>
-                <TableHead>上行</TableHead>
-                <TableHead>下行</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>路径</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(logs?.items ?? []).map((log) => (
-                <TableRow key={log.id} className="cursor-pointer" onClick={() => setSelected(log)}>
-                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                    {formatRelative(log.startedAt)}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{log.userId.slice(0, 8)}…</TableCell>
-                  <TableCell className="text-xs">{nodeName(log.entryNodeId)}</TableCell>
-                  <TableCell className="max-w-48 truncate font-mono text-xs">{log.target}</TableCell>
-                  <TableCell className="text-xs uppercase">{log.command}</TableCell>
-                  <TableCell className="text-xs">{log.durationMs} ms</TableCell>
-                  <TableCell className="text-xs">{formatBytes(log.upBytes)}</TableCell>
-                  <TableCell className="text-xs">{formatBytes(log.downBytes)}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        log.status === 'ok' ? 'success' : log.status === 'denied' ? 'warning' : 'destructive'
-                      }
-                    >
-                      {log.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {log.path.map((id) => (
-                        <Badge key={id} variant="outline" className="text-[10px]">{nodeName(id)}</Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!loading && (logs?.items.length ?? 0) === 0 && (
-                <TableRow>
-                  <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
-                    没有访问记录
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
+            <Table.Content
+              aria-label="访问记录"
+              // Row clicks open the detail modal. React Aria reports the row
+              // key, which is the numeric log id cast to a string.
+              onRowAction={(key) => {
+                const log = logs?.items.find((item) => String(item.id) === String(key))
+                if (log) setSelected(log)
+              }}
+            >
+              <Table.Header>
+                <Table.Column isRowHeader>时间</Table.Column>
+                <Table.Column>用户</Table.Column>
+                <Table.Column>入口节点</Table.Column>
+                <Table.Column>目标</Table.Column>
+                <Table.Column>协议</Table.Column>
+                <Table.Column>耗时</Table.Column>
+                <Table.Column>上行</Table.Column>
+                <Table.Column>下行</Table.Column>
+                <Table.Column>状态</Table.Column>
+                <Table.Column>路径</Table.Column>
+              </Table.Header>
+              <Table.Body
+                renderEmptyState={() => (
+                  <div className="py-8 text-center text-sm text-muted">
+                    {loading ? '加载中…' : '没有访问记录'}
+                  </div>
+                )}
+              >
+                {(logs?.items ?? []).map((log) => (
+                  <Table.Row key={log.id} id={String(log.id)} className="cursor-pointer">
+                    <Table.Cell className="whitespace-nowrap text-xs text-muted">
+                      {formatRelative(log.startedAt)}
+                    </Table.Cell>
+                    <Table.Cell className="font-mono text-xs">{log.userId.slice(0, 8)}…</Table.Cell>
+                    <Table.Cell className="text-xs">{nodeName(log.entryNodeId)}</Table.Cell>
+                    <Table.Cell className="max-w-48 truncate font-mono text-xs">{log.target}</Table.Cell>
+                    <Table.Cell className="text-xs uppercase">{log.command}</Table.Cell>
+                    <Table.Cell className="text-xs">{log.durationMs} ms</Table.Cell>
+                    <Table.Cell className="text-xs">{formatBytes(log.upBytes)}</Table.Cell>
+                    <Table.Cell className="text-xs">{formatBytes(log.downBytes)}</Table.Cell>
+                    <Table.Cell>
+                      <Chip
+                        size="sm"
+                        variant="soft"
+                        color={
+                          log.status === 'ok'
+                            ? 'success'
+                            : log.status === 'denied'
+                              ? 'warning'
+                              : 'danger'
+                        }
+                      >
+                        {log.status}
+                      </Chip>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <div className="flex flex-wrap gap-1">
+                        {log.path.map((id) => (
+                          <Chip key={id} size="sm" variant="soft" color="default">
+                            {nodeName(id)}
+                          </Chip>
+                        ))}
+                      </div>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Content>
           </Table>
 
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center justify-between text-xs text-muted">
             <span>共 {logs?.total ?? 0} 条</span>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                disabled={offset === 0}
-                onClick={() => setOffset(Math.max(0, offset - limit))}
+                isDisabled={offset === 0}
+                onPress={() => setOffset(Math.max(0, offset - limit))}
               >
                 上一页
               </Button>
-              <span>{Math.floor(offset / limit) + 1} / {Math.max(1, Math.ceil((logs?.total ?? 0) / limit))}</span>
+              <span>
+                {Math.floor(offset / limit) + 1} /{' '}
+                {Math.max(1, Math.ceil((logs?.total ?? 0) / limit))}
+              </span>
               <Button
                 variant="outline"
                 size="sm"
-                disabled={offset + limit >= (logs?.total ?? 0)}
-                onClick={() => setOffset(offset + limit)}
+                isDisabled={offset + limit >= (logs?.total ?? 0)}
+                onPress={() => setOffset(offset + limit)}
               >
                 下一页
               </Button>
             </div>
           </div>
-        </CardContent>
+        </Card.Content>
       </Card>
 
-      <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>访问详情</DialogTitle>
-            <DialogDescription>{selected ? formatTime(selected.startedAt) : ''}</DialogDescription>
-          </DialogHeader>
-          {selected && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-2">
-                <div><span className="text-muted-foreground">用户：</span>{selected.userId}</div>
-                <div><span className="text-muted-foreground">入口：</span>{nodeName(selected.entryNodeId)}</div>
-                <div><span className="text-muted-foreground">目标：</span>{selected.target}</div>
-                <div><span className="text-muted-foreground">协议：</span>{selected.command}</div>
-                <div><span className="text-muted-foreground">耗时：</span>{selected.durationMs} ms</div>
-                <div><span className="text-muted-foreground">状态：</span>{selected.status}</div>
-                <div><span className="text-muted-foreground">上行：</span>{formatBytes(selected.upBytes)}</div>
-                <div><span className="text-muted-foreground">下行：</span>{formatBytes(selected.downBytes)}</div>
-                <div><span className="text-muted-foreground">客户端：</span>{selected.clientAddr || '—'}</div>
-                <div><span className="text-muted-foreground">Session：</span>{selected.sessionId}</div>
-              </div>
-              <div>
-                <div className="mb-1 text-muted-foreground">路径</div>
-                <div className="flex flex-wrap gap-1">
-                  {selected.path.map((id) => (
-                    <Badge key={id} variant="outline">{nodeName(id)}</Badge>
-                  ))}
-                </div>
-              </div>
-              {selected.error && (
-                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
-                  {selected.error}
+      <Modal.Backdrop
+        isOpen={Boolean(selected)}
+        onOpenChange={(open) => !open && setSelected(null)}
+      >
+        <Modal.Container>
+          <Modal.Dialog className="sm:max-w-xl">
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading>访问详情</Modal.Heading>
+              <p className="text-sm text-muted">{selected ? formatTime(selected.startedAt) : ''}</p>
+            </Modal.Header>
+            <Modal.Body>
+              {selected && (
+                <div className="space-y-3 text-sm">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-muted">用户：</span>
+                      {selected.userId}
+                    </div>
+                    <div>
+                      <span className="text-muted">入口：</span>
+                      {nodeName(selected.entryNodeId)}
+                    </div>
+                    <div>
+                      <span className="text-muted">目标：</span>
+                      {selected.target}
+                    </div>
+                    <div>
+                      <span className="text-muted">协议：</span>
+                      {selected.command}
+                    </div>
+                    <div>
+                      <span className="text-muted">耗时：</span>
+                      {selected.durationMs} ms
+                    </div>
+                    <div>
+                      <span className="text-muted">状态：</span>
+                      {selected.status}
+                    </div>
+                    <div>
+                      <span className="text-muted">上行：</span>
+                      {formatBytes(selected.upBytes)}
+                    </div>
+                    <div>
+                      <span className="text-muted">下行：</span>
+                      {formatBytes(selected.downBytes)}
+                    </div>
+                    <div>
+                      <span className="text-muted">客户端：</span>
+                      {selected.clientAddr || '—'}
+                    </div>
+                    <div>
+                      <span className="text-muted">Session：</span>
+                      {selected.sessionId}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-muted">路径</div>
+                    <div className="flex flex-wrap gap-1">
+                      {selected.path.map((id) => (
+                        <Chip key={id} size="sm" variant="soft" color="default">
+                          {nodeName(id)}
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
+                  {selected.error && (
+                    <div className="rounded-md border border-danger/40 bg-danger/10 p-2 text-xs text-danger">
+                      {selected.error}
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            </Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
     </div>
   )
 }
