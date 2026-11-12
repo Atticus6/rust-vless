@@ -1,0 +1,6 @@
+/target/
+/master.db
+*.db
+web/node_modules/
+web/dist/
+*.tsbuildinfo

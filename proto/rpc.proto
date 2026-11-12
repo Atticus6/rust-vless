@@ -1,0 +1,150 @@
+syntax = "proto3";
+
+package rustvless.rpc.v1;
+
+// NodeControl is the persistent control channel between a child node and the
+// master. Nodes dial out, so they do not need an inbound control port.
+service NodeControl {
+  rpc Stream(stream NodeMessage) returns (stream MasterMessage);
+}
+
+// Relay forwards a VLESS session between two nodes. Every node serves this
+// service, which is what makes any node usable as a transit hop.
+service Relay {
+  rpc Forward(stream RelayPacket) returns (stream RelayPacket);
+}
+
+message NodeMessage {
+  oneof payload {
+    Hello hello = 1;
+    Heartbeat heartbeat = 2;
+    TrafficReport traffic = 3;
+    AccessLogBatch access_logs = 4;
+    LinkTrafficReport link_traffic = 5;
+  }
+}
+
+message MasterMessage {
+  oneof payload {
+    Accepted accepted = 1;
+    ConfigUpdate config = 2;
+    TopologyUpdate topology = 3;
+  }
+}
+
+message Hello {
+  string node_id = 1;
+  string token = 2;
+  string version = 3;
+  string http_url = 4;
+  string rpc_url = 5;
+}
+
+message Accepted {
+  int64 server_time_ms = 1;
+  string node_name = 2;
+  int64 heartbeat_interval_sec = 3;
+}
+
+message Heartbeat {
+  int64 timestamp_ms = 1;
+  uint64 active_connections = 2;
+  uint64 uptime_sec = 3;
+  int32 cpu_percent = 4;
+  uint64 memory_bytes = 5;
+}
+
+message TrafficReport {
+  repeated UserTraffic users = 1;
+}
+
+message UserTraffic {
+  string user_id = 1;
+  uint64 up_bytes = 2;
+  uint64 down_bytes = 3;
+}
+
+message AccessLogBatch {
+  repeated AccessLog logs = 1;
+}
+
+message AccessLog {
+  string session_id = 1;
+  string user_id = 2;
+  string entry_node_id = 3;
+  string target = 4;
+  string command = 5;
+  int64 started_at_ms = 6;
+  int64 ended_at_ms = 7;
+  uint64 up_bytes = 8;
+  uint64 down_bytes = 9;
+  string status = 10;
+  string error = 11;
+  repeated string path = 12;
+  string client_addr = 13;
+}
+
+message LinkTrafficReport {
+  repeated LinkTraffic links = 1;
+}
+
+message LinkTraffic {
+  string link_id = 1;
+  uint64 up_bytes = 2;
+  uint64 down_bytes = 3;
+  uint64 sessions = 4;
+}
+
+message ConfigUpdate {
+  repeated VlessUser users = 1;
+  int64 revision = 2;
+}
+
+message VlessUser {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+}
+
+message TopologyUpdate {
+  repeated OutboundLink outbound = 1;
+  repeated InboundLink inbound = 2;
+  int64 revision = 3;
+}
+
+message OutboundLink {
+  string link_id = 1;
+  string to_node_id = 2;
+  string to_name = 3;
+  string transport = 4;
+  string endpoint = 5;
+  string token = 6;
+  int64 priority = 7;
+}
+
+message InboundLink {
+  string link_id = 1;
+  string from_node_id = 2;
+  string token = 3;
+  string transport = 4;
+}
+
+message RelayPacket {
+  oneof payload {
+    RelayHello hello = 1;
+    RelayReady ready = 2;
+    bytes data = 3;
+  }
+}
+
+message RelayHello {
+  string link_token = 1;
+  string from_node_id = 2;
+  bytes vless_header = 3;
+  repeated string visited = 4;
+  bool report_traffic = 5;
+}
+
+message RelayReady {
+  repeated string path = 1;
+}
